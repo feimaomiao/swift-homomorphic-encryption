@@ -18,48 +18,44 @@ import HomomorphicEncryption
 import Testing
 
 struct FastEncoderTests {
-    /// Validate that FastPlaintextEncoder produces identical PlaintextMatrix to the standard pipeline.
+    private typealias Scheme = Bfv<UInt64>
+
+    // Concrete parameters from server-config.txtpb
+    private static let polyDegree = 8192
+    private static let plaintextModulus: UInt64 = 536_903_681
+    private static let coefficientModuli: [UInt64] = [
+        36_028_797_018_652_673,
+        36_028_797_017_571_329,
+        36_028_797_017_456_641,
+    ]
+    private static let vectorDimension = 128
+    private static let rowCount = 128
+
     @Test
     func fastEncoderMatchesStandard() async throws {
-        try await runFastEncoderTest(for: Bfv<UInt64>.self, degree: 64, vectorDimension: 16)
+        try await runFastEncoderTest()
     }
 
-    @Test
-    func fastEncoderMatchesStandardLarge() async throws {
-        try await runFastEncoderTest(for: Bfv<UInt64>.self, degree: 4096, vectorDimension: 128)
-    }
+    func runFastEncoderTest() async throws {
+        let vectorDimension = Self.vectorDimension
+        let rowCount = Self.rowCount
 
-    @inlinable
-    func runFastEncoderTest<Scheme: HeScheme>(
-        for _: Scheme.Type, degree: Int, vectorDimension: Int) async throws
-    {
-        let rowCount = degree
-
-        let plaintextBitWidth = degree >= 4096 ? 20 : 10
-        let coeffBitWidth = degree >= 4096 ? 50 : Scheme.Scalar.bitWidth - 4
-
-        let plaintextModuli = try Scheme.Scalar.generatePrimes(
-            significantBitCounts: [plaintextBitWidth],
-            preferringSmall: true,
-            nttDegree: degree)
-        let coefficientModuli = try Scheme.Scalar.generatePrimes(
-            significantBitCounts: Array(repeating: coeffBitWidth, count: 3),
-            preferringSmall: false,
-            nttDegree: degree)
-        let encryptionParameters = try EncryptionParameters<Scheme.Scalar>(
-            polyDegree: degree,
-            plaintextModulus: plaintextModuli[0],
-            coefficientModuli: coefficientModuli,
+        let encryptionParameters = try EncryptionParameters<UInt64>(
+            polyDegree: Self.polyDegree,
+            plaintextModulus: Self.plaintextModulus,
+            coefficientModuli: Self.coefficientModuli,
             errorStdDev: .stdDev32,
             securityLevel: .unchecked)
 
+        let plaintextModuli: [UInt64] = [Self.plaintextModulus]
         let scalingFactor = ClientConfig<Scheme>.maxScalingFactor(
             distanceMetric: .dotProduct,
             vectorDimension: vectorDimension,
             plaintextModuli: plaintextModuli)
 
         let evaluationKeyConfig = try MatrixMultiplication.evaluationKeyConfig(
-            plaintextMatrixDimensions: MatrixDimensions(rowCount: rowCount, columnCount: vectorDimension),
+            plaintextMatrixDimensions: MatrixDimensions(
+                rowCount: rowCount, columnCount: vectorDimension),
             maxQueryCount: 1,
             encryptionParameters: encryptionParameters,
             scheme: Scheme.self)
@@ -73,7 +69,8 @@ struct FastEncoderTests {
             distanceMetric: .dotProduct)
         let serverConfig = ServerConfig(
             clientConfig: clientConfig,
-            databasePacking: .diagonal(babyStepGiantStep: BabyStepGiantStep(vectorDimension: vectorDimension)))
+            databasePacking: .diagonal(
+                babyStepGiantStep: BabyStepGiantStep(vectorDimension: vectorDimension)))
 
         let context = try Scheme.Context(encryptionParameters: encryptionParameters)
 
@@ -94,38 +91,18 @@ struct FastEncoderTests {
         }
 
         // === Standard pipeline ===
-        let clock = ContinuousClock()
-
         let database = Database(rows: rawVectors.enumerated().map { i, vec in
             DatabaseRow(entryId: UInt64(i), entryMetadata: [], vector: vec)
         })
 
-        var standardProcessed: ProcessedDatabase<Scheme>?
-        let standardTime = try await clock.measure {
-            standardProcessed = try await database.process(config: serverConfig, contexts: [context])
-        }
-        let unwrappedStandard = try #require(standardProcessed)
-        let standardMatrices = unwrappedStandard.plaintextMatrices
-        print("  Standard pipeline: \(standardTime)")
+        let standardProcessed = try await database.process(config: serverConfig, contexts: [context])
+        let standardMatrices = standardProcessed.plaintextMatrices
 
         // === Fast encoder ===
 
-        let setupTime = try clock.measure {
-            _ = try FastPlaintextEncoder<Scheme>(config: serverConfig, context: context, rowCount: rowCount)
-        }
-
         let encoder = try FastPlaintextEncoder<Scheme>(config: serverConfig, context: context, rowCount: rowCount)
 
-        var fastMatrix: PlaintextMatrix<Scheme, Eval>?
-        let encodeTime = try clock.measure {
-            fastMatrix = try encoder.encode(signedValues: signedValues, context: context)
-        }
-        let unwrappedFastMatrix = try #require(fastMatrix)
-
-        print("  Setup (one-time): \(setupTime)")
-        print("  Fast encode: \(encodeTime)")
-        print("  Mappings count: \(encoder.mappings.count)")
-        print("  Plaintext count: \(encoder.plaintextCount)")
+        let fastMatrix = try encoder.encode(signedValues: signedValues, context: context)
 
         // === Compare: decrypt both and check values match ===
         // The PlaintextMatrix plaintexts should produce identical results when
@@ -146,7 +123,7 @@ struct FastEncoderTests {
         // Fast encoder response
         let fastProcessed = try ProcessedDatabase<Scheme>(
             contexts: [context],
-            plaintextMatrices: [unwrappedFastMatrix],
+            plaintextMatrices: [fastMatrix],
             entryIds: (0..<UInt64(rowCount)).map(\.self),
             entryMetadatas: [],
             serverConfig: serverConfig)
@@ -161,8 +138,6 @@ struct FastEncoderTests {
             let diff = abs(standardDistances.distances.data[i] - fastDistances.distances.data[i])
             maxDiff = max(maxDiff, diff)
         }
-        print("  Max difference (standard vs fast): \(maxDiff)")
-
         // They should be identical (same integer values, same encoding)
         #expect(maxDiff == 0, Comment(rawValue: "Fast encoder differs from standard: maxDiff=\(maxDiff)"))
     }
@@ -171,37 +146,29 @@ struct FastEncoderTests {
     /// Database → QuantizedDatabase → serialize → deserialize → FastPlaintextEncoder → query
     @Test
     func quantizedDatabaseRoundTrip() async throws {
-        try await runQuantizedRoundTrip(for: Bfv<UInt64>.self)
+        try await runQuantizedRoundTrip()
     }
 
-    @inlinable
-    func runQuantizedRoundTrip<Scheme: HeScheme>(for _: Scheme.Type) async throws {
-        let degree = 64
-        let vectorDimension = 16
-        let rowCount = degree
+    func runQuantizedRoundTrip() async throws {
+        let vectorDimension = Self.vectorDimension
+        let rowCount = Self.rowCount
 
-        let plaintextModuli = try Scheme.Scalar.generatePrimes(
-            significantBitCounts: [10],
-            preferringSmall: true,
-            nttDegree: degree)
-        let coefficientModuli = try Scheme.Scalar.generatePrimes(
-            significantBitCounts: Array(repeating: Scheme.Scalar.bitWidth - 4, count: 3),
-            preferringSmall: false,
-            nttDegree: degree)
-        let encryptionParameters = try EncryptionParameters<Scheme.Scalar>(
-            polyDegree: degree,
-            plaintextModulus: plaintextModuli[0],
-            coefficientModuli: coefficientModuli,
+        let encryptionParameters = try EncryptionParameters<UInt64>(
+            polyDegree: Self.polyDegree,
+            plaintextModulus: Self.plaintextModulus,
+            coefficientModuli: Self.coefficientModuli,
             errorStdDev: .stdDev32,
             securityLevel: .unchecked)
 
+        let plaintextModuli: [UInt64] = [Self.plaintextModulus]
         let scalingFactor = ClientConfig<Scheme>.maxScalingFactor(
             distanceMetric: .dotProduct,
             vectorDimension: vectorDimension,
             plaintextModuli: plaintextModuli)
 
         let evaluationKeyConfig = try MatrixMultiplication.evaluationKeyConfig(
-            plaintextMatrixDimensions: MatrixDimensions(rowCount: rowCount, columnCount: vectorDimension),
+            plaintextMatrixDimensions: MatrixDimensions(
+                rowCount: rowCount, columnCount: vectorDimension),
             maxQueryCount: 1,
             encryptionParameters: encryptionParameters,
             scheme: Scheme.self)
@@ -215,7 +182,8 @@ struct FastEncoderTests {
             distanceMetric: .dotProduct)
         let serverConfig = ServerConfig(
             clientConfig: clientConfig,
-            databasePacking: .diagonal(babyStepGiantStep: BabyStepGiantStep(vectorDimension: vectorDimension)))
+            databasePacking: .diagonal(
+                babyStepGiantStep: BabyStepGiantStep(vectorDimension: vectorDimension)))
         let context = try Scheme.Context(encryptionParameters: encryptionParameters)
 
         // Create test database
@@ -233,12 +201,9 @@ struct FastEncoderTests {
 
         // Step 1: Quantize
         let quantized = QuantizedDatabase<Scheme>(database: database, config: serverConfig)
-        print("  Quantized: \(quantized.rowCount) rows × \(quantized.vectorDimension) dims")
-        print("  Vector data size: \(quantized.vectorDataByteCount) bytes")
 
         // Step 2: Serialize (this is what goes into ORAM)
         let bytes = quantized.serializeVectors()
-        print("  Serialized size: \(bytes.count) bytes")
 
         // Step 3: Deserialize (proxy reads from ORAM)
         let restored = QuantizedDatabase<Scheme>.deserializeVectors(
@@ -279,15 +244,6 @@ struct FastEncoderTests {
             let diff = abs(distances.distances.data[i] - standardDistances.distances.data[i])
             maxDiff = max(maxDiff, diff)
         }
-        print("  Max difference (quantized round-trip vs standard): \(maxDiff)")
         #expect(maxDiff == 0, Comment(rawValue: "Round-trip differs: maxDiff=\(maxDiff)"))
-
-        // Compare sizes
-        // Each plaintext matrix stores polyDegree × moduliCount × scalarSize bytes per plaintext
-        let scalarSize = MemoryLayout<Scheme.Scalar>.size
-        let approxProcessedSize = encoder.plaintextCount * degree * 3 * scalarSize // 3 moduli
-        print("  Approx ProcessedDatabase size: \(approxProcessedSize) bytes (\(approxProcessedSize / 1024)KB)")
-        print("  QuantizedDatabase vectors only: \(bytes.count) bytes (\(bytes.count / 1024)KB)")
-        print("  Size ratio: \(Float(approxProcessedSize) / Float(bytes.count))x smaller in ORAM")
     }
 }
