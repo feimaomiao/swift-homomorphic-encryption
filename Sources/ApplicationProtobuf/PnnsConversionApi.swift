@@ -22,11 +22,15 @@ extension Apple_SwiftHomomorphicEncryption_Api_Pnns_V1_PNNSShardResponse {
     /// - Parameter contexts: Contexts to associate with the native type; one context per plaintext modulus.
     /// - Returns: The converted native type.
     /// - Throws: Error upon invalid protobuf object.
+    ///
+    /// The deserialized ciphertexts inherit their modulus count from the serialized data.
+    /// When `Server.computeResponse(modSwitchDown: false)` is used, ciphertexts may have more
+    /// than one coefficient modulus, preserving noise budget for subsequent aggregation.
     public func native<Scheme: HeScheme>(contexts: [Scheme.Context]) throws -> Response<Scheme> {
         precondition(contexts.count == reply.count)
         let matrices: [CiphertextMatrix<Scheme, Coeff>] = try zip(reply, contexts).map { matrix, context in
             let serialized: SerializedCiphertextMatrix<Scheme.Scalar> = try matrix.native()
-            return try CiphertextMatrix(deserialize: serialized, context: context, moduliCount: 1)
+            return try CiphertextMatrix(deserialize: serialized, context: context)
         }
         return Response(
             ciphertextMatrices: matrices,
