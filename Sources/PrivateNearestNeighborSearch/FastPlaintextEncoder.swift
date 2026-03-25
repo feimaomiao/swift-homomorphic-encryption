@@ -66,7 +66,7 @@ public struct FastPlaintextEncoder<Scheme: HeScheme>: Sendable {
         self.dimensions = try MatrixDimensions(rowCount: rowCount, columnCount: vectorDimension)
         self.polyDegree = encryptionParameters.polyDegree
 
-        guard let simdDimensions = Scheme.simdDimensions(for: encryptionParameters) else {
+        guard Scheme.simdDimensions(for: encryptionParameters) != nil else {
             throw PnnsError.simdEncodingNotSupported(for: encryptionParameters)
         }
         guard case let .diagonal(bsgs) = config.databasePacking else {
