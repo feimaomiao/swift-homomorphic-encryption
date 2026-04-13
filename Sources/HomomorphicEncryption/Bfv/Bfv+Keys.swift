@@ -390,6 +390,7 @@ extension Bfv {
                     count: keyComponentCount &* degree),
                 rowCount: keyComponentCount,
                 columnCount: degree)
+            var accWriteSpan = accumulator.data.mutableSpan
 
             for decomposeIndex in 0..<decomposeModuliCount {
                 let qKeyJ = keySwitchingModuli[decomposeIndex]
@@ -415,17 +416,18 @@ extension Bfv {
                             .multipliedFullWidth(by: polySpan[polyIndex &+ columnIndex])
                         // Overflow avoided by `maxLazyProductAccumulationCount()` check during context
                         // initialization
-                        accumulator[accIndex &+ columnIndex] &+= T.DoubleWidth(prod)
+                        accWriteSpan[accIndex &+ columnIndex] &+= T.DoubleWidth(prod)
                     }
                 }
             }
+            let accReadSpan = accumulator.data.span
             let prodIndex = ciphertextProd.polys[0].data.index(row: rnsIndex, column: 0)
             for rowIndex in ciphertextProd.polys.indices {
                 let accIndex = accumulator.index(row: rowIndex, column: 0)
                 var ciphertextProdSpan = ciphertextProd.polys[rowIndex].data.data.mutableSpan
                 for columnIndex in 0..<degree {
                     ciphertextProdSpan[prodIndex &+ columnIndex] = keyModulus
-                        .reduce(accumulator[accIndex &+ columnIndex])
+                        .reduce(accReadSpan[accIndex &+ columnIndex])
                 }
             }
         }

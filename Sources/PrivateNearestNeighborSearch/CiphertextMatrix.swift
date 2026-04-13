@@ -23,16 +23,16 @@ public struct CiphertextMatrix<Scheme: HeScheme, Format: PolyFormat>: Equatable,
     @usableFromInline package let dimensions: MatrixDimensions
 
     /// Dimensions of the scalar matrix in a SIMD-encoded plaintext.
-    @usableFromInline let simdDimensions: SimdEncodingDimensions
+    @usableFromInline package let simdDimensions: SimdEncodingDimensions
 
     /// Plaintext packing with which the data is stored.
-    @usableFromInline let packing: MatrixPacking
+    @usableFromInline package let packing: MatrixPacking
 
     /// Encrypted data.
     @usableFromInline package var ciphertexts: [Ciphertext<Scheme, Format>]
 
     /// The parameter context.
-    @usableFromInline var context: Scheme.Context {
+    @usableFromInline package var context: Scheme.Context {
         precondition(!ciphertexts.isEmpty, "Ciphertext array cannot be empty")
         return ciphertexts[0].context
     }
@@ -102,6 +102,42 @@ public struct CiphertextMatrix<Scheme: HeScheme, Format: PolyFormat>: Equatable,
     package func decrypt(using secretKey: SecretKey<Scheme>) throws -> PlaintextMatrix<Scheme, Coeff> {
         let plaintexts = try ciphertexts.map { ciphertext in try ciphertext.decrypt(using: secretKey) }
         return try PlaintextMatrix(dimensions: dimensions, packing: packing, plaintexts: plaintexts)
+    }
+}
+
+// MARK: arithmetic
+
+extension CiphertextMatrix {
+    /// Element-wise ciphertext matrix addition.
+    ///
+    /// Both matrices must have the same dimensions and packing.
+    /// This is the operation the proxy uses to aggregate partial responses from multiple servers.
+    /// - Parameters:
+    ///   - lhs: First ciphertext matrix.
+    ///   - rhs: Second ciphertext matrix.
+    /// - Returns: A ciphertext matrix encrypting the element-wise sum.
+    /// - Throws: Error upon mismatched dimensions, packing, or ciphertext count.
+    @inlinable
+    public static func + (lhs: Self, rhs: Self) throws -> Self {
+        guard lhs.dimensions == rhs.dimensions else {
+            throw PnnsError.invalidMatrixDimensions(lhs.dimensions)
+        }
+        guard lhs.packing == rhs.packing else {
+            throw PnnsError.wrongMatrixPacking(got: rhs.packing, expected: lhs.packing)
+        }
+        guard lhs.ciphertexts.count == rhs.ciphertexts.count else {
+            throw PnnsError.wrongCiphertextCount(got: rhs.ciphertexts.count, expected: lhs.ciphertexts.count)
+        }
+        let sumCiphertexts = try zip(lhs.ciphertexts, rhs.ciphertexts).map { try $0 + $1 }
+        return try Self(dimensions: lhs.dimensions, packing: lhs.packing, ciphertexts: sumCiphertexts)
+    }
+
+    /// In-place element-wise ciphertext matrix addition.
+    /// - Parameter rhs: Ciphertext matrix to add.
+    /// - Throws: Error upon mismatched dimensions, packing, or ciphertext count.
+    @inlinable
+    public static func += (lhs: inout Self, rhs: Self) throws {
+        lhs = try lhs + rhs
     }
 }
 

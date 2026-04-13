@@ -19,14 +19,20 @@ import HomomorphicEncryptionProtobuf
 
 extension Apple_SwiftHomomorphicEncryption_Api_Pnns_V1_PNNSShardResponse {
     /// Converts the protobuf object to a native type.
-    /// - Parameter contexts: Contexts to associate with the native type; one context per plaintext modulus.
-    /// - Returns: The converted native type.
-    /// - Throws: Error upon invalid protobuf object.
-    public func native<Scheme: HeScheme>(contexts: [Scheme.Context]) throws -> Response<Scheme> {
+    /// - Parameters:
+    ///   - contexts: Contexts to associate with the native type; one context per plaintext modulus.
+    ///   - moduliCount: Number of coefficient moduli in each serialized ciphertext. Defaults to 1
+    ///     (single-modulus responses from `computeResponse(modSwitchDown: true)`). Pass `nil` to
+    ///     use all moduli from the context, which is needed when responses were computed with
+    ///     `modSwitchDown: false` to preserve noise budget for aggregation.
+    public func native<Scheme: HeScheme>(
+        contexts: [Scheme.Context],
+        moduliCount: Int? = 1) throws -> Response<Scheme>
+    {
         precondition(contexts.count == reply.count)
         let matrices: [CiphertextMatrix<Scheme, Coeff>] = try zip(reply, contexts).map { matrix, context in
             let serialized: SerializedCiphertextMatrix<Scheme.Scalar> = try matrix.native()
-            return try CiphertextMatrix(deserialize: serialized, context: context, moduliCount: 1)
+            return try CiphertextMatrix(deserialize: serialized, context: context, moduliCount: moduliCount)
         }
         return Response(
             ciphertextMatrices: matrices,

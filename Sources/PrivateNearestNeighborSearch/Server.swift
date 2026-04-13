@@ -44,9 +44,6 @@ public struct Server<Scheme: HeScheme>: Sendable {
     /// - Throws: Error upon failure to create the server.
     @inlinable
     public init(database: ProcessedDatabase<Scheme>) throws {
-        guard database.serverConfig.distanceMetric == .cosineSimilarity else {
-            throw PnnsError.wrongDistanceMetric(got: database.serverConfig.distanceMetric, expected: .cosineSimilarity)
-        }
         self.database = database
     }
 
@@ -54,11 +51,24 @@ public struct Server<Scheme: HeScheme>: Sendable {
     /// - Parameters:
     ///   - query: Query.
     ///   - evaluationKey: Evaluation key to aid in the server computation.
+    ///   - modSwitchDown: If `true` (the default), mod-switches the response ciphertexts down to a
+    ///     single coefficient modulus, minimizing response size for immediate decryption.
+    ///
+    ///     Set to `false` when the response will be aggregated (ciphertext-added) with other
+    ///     responses before decryption. Keeping ciphertexts at a higher modulus level preserves
+    ///     noise budget for the subsequent additions.
+    ///
+    ///     **Why this matters:** For BFV with small coefficient moduli (e.g. `n_4096_logq_27_28_28_logt_17`),
+    ///     the lowest modulus q₀ provides only ~10 bits of headroom above the plaintext modulus.
+    ///     Adding 4 ciphertexts at this level can overflow the noise budget, producing incorrect
+    ///     decryption. Deferring the mod-switch until after aggregation keeps ciphertexts at a
+    ///     level with ~38+ bits of headroom, which is sufficient for many additions.
     /// - Returns: The response.
     /// - Throws: Error upon failure to compute a response.
     @inlinable
     public func computeResponse(to query: Query<Scheme>,
-                                using evaluationKey: EvaluationKey<Scheme>) async throws -> Response<Scheme>
+                                using evaluationKey: EvaluationKey<Scheme>,
+                                modSwitchDown: Bool = true) async throws -> Response<Scheme>
     {
         guard query.ciphertextMatrices.count == database.plaintextMatrices.count else {
             throw PnnsError.invalidQuery(reason: InvalidQueryReason.wrongCiphertextMatrixCount(
@@ -74,8 +84,11 @@ public struct Server<Scheme: HeScheme>: Sendable {
             var responseMatrix = try await plaintextMatrix.mulTranspose(
                 matrix: ciphertextMatrix,
                 using: evaluationKey)
-            // Reduce response size by mod-switching to a single modulus.
-            try await responseMatrix.modSwitchDownToSingle()
+            if modSwitchDown {
+                // Reduce response size by mod-switching to a single modulus.
+                // Only safe when the response will be decrypted directly (no further additions).
+                try await responseMatrix.modSwitchDownToSingle()
+            }
             return try await responseMatrix.convertToCoeffFormat()
         }
 
