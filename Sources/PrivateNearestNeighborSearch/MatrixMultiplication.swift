@@ -83,15 +83,15 @@ public enum MatrixMultiplication {
         }
         let degree = encryptionParameters.polyDegree
         let babyStepGiantStep = BabyStepGiantStep(vectorDimension: plaintextMatrixDimensions.columnCount)
-        var galoisElements = try [
-            GaloisElement.rotatingColumns(
-                by: -1,
-                degree: degree),
-            GaloisElement.rotatingColumns(
-                by: -babyStepGiantStep.babyStep,
-                degree: degree),
-            GaloisElement.swappingRows(degree: degree),
-        ]
+        // Include Galois elements for all baby-step rotations (hoisted key switching)
+        // instead of just rotation by -1. This enables parallel baby-step computation.
+        var galoisElements = [GaloisElement.swappingRows(degree: degree)]
+        for step in 1..<babyStepGiantStep.babyStep {
+            try galoisElements.append(GaloisElement.rotatingColumns(by: -step, degree: degree))
+        }
+        try galoisElements.append(GaloisElement.rotatingColumns(
+            by: -babyStepGiantStep.babyStep,
+            degree: degree))
 
         let resultColumnsPerRowCount = simdColumnCount / plaintextMatrixDimensions.rowCount
         if resultColumnsPerRowCount > 1 {
@@ -173,23 +173,28 @@ extension PlaintextMatrix {
         // We extend this basic idea using baby-step giant-step logic from Section 6.3 of
         // https://eprint.iacr.org/2018/244.pdf.
 
-        // 1) Compute v_j = theta^j(v)
-        var rotatedStates: [Scheme.CanonicalCiphertext] = []
-        rotatedStates.reserveCapacity(babyStepGiantStep.babyStep)
-
-        var state = ciphertextVector.ciphertexts[0]
-        for step in 0..<babyStepGiantStep.babyStep {
-            rotatedStates.append(state)
-            if step != babyStepGiantStep.babyStep - 1 {
-                try await state.rotateColumns(by: -1, using: evaluationKey)
-            }
-        }
-        // Parallelize baby-step Eval conversions (each NTT is independent)
-        let frozenRotatedStates = rotatedStates
+        // 1) Compute v_j = theta^j(v) using hoisted key switching.
+        // Precompute the digit decomposition of polys[1] once, then apply all
+        // baby-step rotations from the original ciphertext.
+        let originalCiphertext = ciphertextVector.ciphertexts[0]
+        let decomposition = try Scheme.decomposeForKeySwitching(
+            context: context,
+            target: originalCiphertext.polys[1])
+        let babyStepCount = babyStepGiantStep.babyStep
         let rotatedCiphertexts: [Scheme.EvalCiphertext] = try await parallelMap(
-            count: frozenRotatedStates.count)
-        { index in
-            try await frozenRotatedStates[index].convertToEvalFormat()
+            count: babyStepCount)
+        { step in
+            if step == 0 {
+                return try await originalCiphertext.convertToEvalFormat()
+            }
+            let element = try GaloisElement.rotatingColumns(by: -step, degree: context.degree)
+            var rotated = originalCiphertext
+            try Scheme.applyGaloisHoisted(
+                ciphertext: &rotated,
+                element: element,
+                decomposition: decomposition,
+                using: evaluationKey)
+            return try await rotated.convertToEvalFormat()
         }
 
         let resultCiphertextCount = dimensions.rowCount.dividingCeil(context.degree, variableTime: true)

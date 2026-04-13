@@ -1,4 +1,4 @@
-// Copyright 2024-2025 Apple Inc. and the Swift Homomorphic Encryption project authors
+// Copyright 2024-2026 Apple Inc. and the Swift Homomorphic Encryption project authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,6 +13,31 @@
 // limitations under the License.
 
 public import ModularArithmetic
+
+/// Precomputed digit decomposition for hoisted key switching.
+///
+/// Stores NTT'd digits of a polynomial for reuse across multiple Galois automorphisms
+/// applied to the same ciphertext. This avoids redundant decomposition and forward NTT
+/// computation per automorphism.
+public struct KeySwitchDecomposition<T: ScalarType>: Sendable {
+    /// Flat array of NTT'd digits.
+    /// Indexed as `[rnsIndex * decomposeModuliCount * degree + decomposeIndex * degree + columnIndex]`.
+    @usableFromInline let nttDigits: [T]
+    /// Polynomial degree.
+    @usableFromInline let degree: Int
+    /// Number of decomposition moduli (= number of ciphertext moduli).
+    @usableFromInline let decomposeModuliCount: Int
+    /// Number of RNS moduli in extended basis (= decomposeModuliCount + 1).
+    @usableFromInline let rnsModuliCount: Int
+
+    @inlinable
+    init(nttDigits: [T], degree: Int, decomposeModuliCount: Int, rnsModuliCount: Int) {
+        self.nttDigits = nttDigits
+        self.degree = degree
+        self.decomposeModuliCount = decomposeModuliCount
+        self.rnsModuliCount = rnsModuliCount
+    }
+}
 
 extension Bfv {
     @inlinable
@@ -100,6 +125,211 @@ extension Bfv {
         _ = consume currentKey
 
         return KeySwitchKey(context: context, ciphertexts: ciphers)
+    }
+
+    /// Precomputes the digit decomposition and NTT of a polynomial for hoisted key switching.
+    ///
+    /// When applying multiple Galois automorphisms to the same ciphertext (e.g., in baby-step
+    /// rotations), the digit decomposition and forward NTT of `polys[1]` are identical across
+    /// all automorphisms. This method precomputes them once for reuse with
+    /// ``_computeKeySwitchingUpdateFromDecomposition``.
+    /// - Parameters:
+    ///   - context: Context for HE computation.
+    ///   - target: The polynomial to decompose (typically `ciphertext.polys[1]`).
+    /// - Returns: Precomputed decomposition for use with hoisted key switching.
+    /// - Throws: Error upon failure to decompose.
+    @inlinable
+    public static func decomposeForKeySwitching(
+        context: Context,
+        target: PolyRq<Scalar, CanonicalCiphertextFormat>) throws -> KeySwitchDecomposition<Scalar>
+    {
+        let degree = target.degree
+        let decomposeModuliCount = target.moduli.count
+        let rnsModuliCount = decomposeModuliCount &+ 1
+
+        let keySwitchingContext = context.keySwitchingContexts[target.moduli.count - 1]
+        guard let topKeySwitchingContext = context.keySwitchingContexts.last else {
+            throw HeError.invalidContext(context)
+        }
+        let keySwitchingModuli = keySwitchingContext.reduceModuli
+
+        let targetCoeff = try target.convertToCoeffFormat()
+
+        // Store UNREDUCED coefficient-domain digits per decomposition index.
+        // The Galois automorphism must be applied BEFORE reduction (they don't commute
+        // for negated coefficients), so we store one copy per decomposeIndex.
+        var coeffDigits = [Scalar](repeating: 0, count: decomposeModuliCount &* degree)
+
+        for decomposeIndex in 0..<decomposeModuliCount {
+            let bufferSlice = targetCoeff.poly(rnsIndex: decomposeIndex)
+            let offset = decomposeIndex &* degree
+            for i in 0..<degree {
+                coeffDigits[offset &+ i] = bufferSlice[i]
+            }
+        }
+
+        return KeySwitchDecomposition(
+            nttDigits: coeffDigits, // unreduced coeff digits, indexed by decomposeIndex
+            degree: degree,
+            decomposeModuliCount: decomposeModuliCount,
+            rnsModuliCount: rnsModuliCount)
+    }
+
+    /// Computes key-switching update using a precomputed decomposition and a Galois element.
+    ///
+    /// This is the hoisted variant of ``_computeKeySwitchingUpdate`` — it reuses precomputed
+    /// NTT'd digits and applies the Galois permutation in NTT domain, saving the per-automorphism
+    /// decomposition and forward NTT cost.
+    /// - Parameters:
+    ///   - context: Context for HE computation.
+    ///   - decomposition: Precomputed decomposition from ``_decomposeForKeySwitching``.
+    ///   - element: Galois element for the automorphism to apply.
+    ///   - keySwitchingKey: Key-switching key for this Galois element.
+    /// - Returns: The key-switching update polynomials.
+    /// - Throws: Error upon failure to compute the update.
+    @inlinable
+    public static func _computeKeySwitchingUpdateFromDecomposition(
+        context: Context,
+        decomposition: KeySwitchDecomposition<Scalar>,
+        element: Int,
+        keySwitchingKey: Self.KeySwitchKey) throws -> [PolyRq<Scalar, CanonicalCiphertextFormat>]
+    {
+        let degree = decomposition.degree
+        let decomposeModuliCount = decomposition.decomposeModuliCount
+        let rnsModuliCount = decomposition.rnsModuliCount
+
+        let keySwitchingContext = context.keySwitchingContexts[decomposeModuliCount - 1]
+        guard let topKeySwitchingContext = context.keySwitchingContexts.last else {
+            throw HeError.invalidContext(context)
+        }
+        let keySwitchingModuli = keySwitchingContext.reduceModuli
+
+        let keyComponentCount = keySwitchingKey.ciphertexts[0].polys.count
+        let polys = [PolyRq<Scalar, Eval>](
+            repeating: PolyRq.zero(context: keySwitchingContext),
+            count: keyComponentCount)
+        var ciphertextProd: EvalCiphertext = try Ciphertext(context: context,
+                                                            polys: polys,
+                                                            correctionFactor: 1)
+
+        // Build the INVERSE Coeff-domain Galois permutation.
+        // The iterator maps input index i → output index perm(i) with sign(i).
+        // We need: output[j] = sign(inv(j)) * input[inv(j)].
+        var inversePermutation = [Int](repeating: 0, count: degree)
+        var inverseNegate = [Bool](repeating: false, count: degree)
+        var galoisIter = GaloisCoeffIterator(degree: degree, galoisElement: element)
+        for inputIndex in 0..<degree {
+            guard let (negate, outputIndex) = galoisIter.next() else {
+                preconditionFailure("GaloisCoeffIterator out of range")
+            }
+            inversePermutation[outputIndex] = inputIndex
+            inverseNegate[outputIndex] = negate
+        }
+
+        let keyCiphers = keySwitchingKey.ciphertexts
+        var permutedDigit = [Scalar](repeating: 0, count: degree)
+
+        for rnsIndex in 0..<rnsModuliCount {
+            let keyIndex = rnsIndex == rnsModuliCount &- 1
+                ? topKeySwitchingContext.moduli.count &- 1 : rnsIndex
+            let keyModulus = keySwitchingModuli[rnsIndex]
+
+            var accumulator = Array2d(
+                data: [T.DoubleWidth](
+                    repeating: 0,
+                    count: keyComponentCount &* degree),
+                rowCount: keyComponentCount,
+                columnCount: degree)
+
+            for decomposeIndex in 0..<decomposeModuliCount {
+                let qKeyJ = keySwitchingModuli[decomposeIndex]
+                // Apply Galois permutation to unreduced digit (using original modulus for negation)
+                let digitOffset = decomposeIndex &* degree
+                for j in 0..<degree {
+                    let value = decomposition.nttDigits[digitOffset &+ inversePermutation[j]]
+                    if inverseNegate[j] {
+                        permutedDigit[j] = value.negateMod(modulus: qKeyJ.modulus)
+                    } else {
+                        permutedDigit[j] = value
+                    }
+                }
+                // Reduce mod keyModulus if needed (AFTER Galois, matching original order)
+                if qKeyJ.modulus > keyModulus.modulus {
+                    for index in permutedDigit.indices {
+                        permutedDigit[index] = keyModulus.reduce(permutedDigit[index])
+                    }
+                }
+                // Forward NTT the permuted digit
+                try permutedDigit.withUnsafeMutableBufferPointer { bufferPtr in
+                    try topKeySwitchingContext.forwardNtt(
+                        // swiftlint:disable:next force_unwrapping
+                        dataPtr: bufferPtr.baseAddress!,
+                        modulus: keyModulus.modulus)
+                }
+
+                for (index, poly) in keyCiphers[decomposeIndex].polys.enumerated() {
+                    let accIndex = poly.data.index(row: index, column: 0)
+                    let polyIndex = poly.data.index(row: keyIndex, column: 0)
+                    let polySpan = poly.data.data.span
+                    for columnIndex in 0..<degree {
+                        let prod = permutedDigit[columnIndex]
+                            .multipliedFullWidth(by: polySpan[polyIndex &+ columnIndex])
+                        accumulator[accIndex &+ columnIndex] &+= T.DoubleWidth(prod)
+                    }
+                }
+            }
+            let prodIndex = ciphertextProd.polys[0].data.index(row: rnsIndex, column: 0)
+            for rowIndex in ciphertextProd.polys.indices {
+                let accIndex = accumulator.index(row: rowIndex, column: 0)
+                var ciphertextProdSpan = ciphertextProd.polys[rowIndex].data.data.mutableSpan
+                for columnIndex in 0..<degree {
+                    ciphertextProdSpan[prodIndex &+ columnIndex] = keyModulus
+                        .reduce(accumulator[accIndex &+ columnIndex])
+                }
+            }
+        }
+        var canonicalProd = try ciphertextProd.convertToCanonicalFormat()
+        try canonicalProd.modSwitchDown()
+        return canonicalProd.polys
+    }
+
+    /// Applies a Galois automorphism using a precomputed key-switching decomposition (hoisted).
+    ///
+    /// This is faster than ``applyGalois(ciphertext:element:using:)`` when applying multiple
+    /// automorphisms to the same ciphertext, because the digit decomposition and forward NTT
+    /// of `polys[1]` are computed only once via ``_decomposeForKeySwitching``.
+    /// - Parameters:
+    ///   - ciphertext: Ciphertext to transform. Must be the same ciphertext used for the decomposition.
+    ///   - element: Galois element of the transformation.
+    ///   - decomposition: Precomputed decomposition from ``_decomposeForKeySwitching``.
+    ///   - evaluationKey: Evaluation key containing the Galois element.
+    /// - Throws: Error upon failure to apply the transformation.
+    @inlinable
+    public static func applyGaloisHoisted(
+        ciphertext: inout CanonicalCiphertext,
+        element: Int,
+        decomposition: KeySwitchDecomposition<Scalar>,
+        using evaluationKey: EvaluationKey<Bfv<T>>) throws
+    {
+        precondition(ciphertext.polys.count == 2, "ciphertext must have two polys when applying galois")
+        precondition(
+            ciphertext.correctionFactor == 1,
+            "BFV Galois automorphisms not implemented for correction factor not equal to 1")
+        guard let galoisKey = evaluationKey.galoisKey else {
+            throw HeError.missingGaloisKey
+        }
+        guard let keySwitchingKey = galoisKey.keys[element] else {
+            throw HeError.missingGaloisElement(element: element)
+        }
+        ciphertext.polys[0] = ciphertext.polys[0].applyGalois(element: element)
+        let update = try Self._computeKeySwitchingUpdateFromDecomposition(
+            context: ciphertext.context,
+            decomposition: decomposition,
+            element: element,
+            keySwitchingKey: keySwitchingKey)
+        ciphertext.polys[0] += update[0]
+        ciphertext.polys[1] = update[1]
+        ciphertext.clearSeed()
     }
 
     /// Computes the key-switching update of a target polynomial.
