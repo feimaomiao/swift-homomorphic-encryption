@@ -123,14 +123,35 @@ extension CiphertextMatrix where Format == Scheme.CanonicalCiphertextFormat {
                 return inner
             }
 
-        // 2) For each output ciphertext, combine the giant-step inner products via
-        //    rotateColumnsAndSum — same BSGS structure as the plaintext kernel.
+        // 2) For each output ciphertext, compute the giant-step inner products IN PARALLEL
+        //    via withThrowingTaskGroup. Each giant step is an independent Ct × Ct inner
+        //    product + relinearize — these are the expensive units of work in the kernel,
+        //    and parallelizing them is the single biggest win available without reaching
+        //    into Bfv internals. Typical d=192 ⇒ giantStep = 16 ⇒ up to 16-way parallel.
+        //    rotateColumnsAndSum at the end is serial by nature (rolling accumulator).
+        let giantStep = bsgs.giantStep
         return try await .init((0..<resultCiphertextCount).async
             .map { resultCiphertextIndex in
-                let innerProductsToAdd: [Scheme.CanonicalCiphertext] = try await .init(
-                    (0..<bsgs.giantStep).async.map { giantStepIndex in
-                        try await generateInnerProduct(giantStepIndex, resultCiphertextIndex)
-                    })
+                let innerProductsToAdd: [Scheme.CanonicalCiphertext] = try await withThrowingTaskGroup(
+                    of: (Int, Scheme.CanonicalCiphertext).self,
+                    returning: [Scheme.CanonicalCiphertext].self)
+                { group in
+                    for giantStepIndex in 0..<giantStep {
+                        group.addTask {
+                            let ip = try await generateInnerProduct(giantStepIndex, resultCiphertextIndex)
+                            return (giantStepIndex, ip)
+                        }
+                    }
+                    var collected: [(Int, Scheme.CanonicalCiphertext)] = []
+                    collected.reserveCapacity(giantStep)
+                    for try await pair in group {
+                        collected.append(pair)
+                    }
+                    // Re-order by giant-step index so the subsequent rotateColumnsAndSum
+                    // sees the same order as the plaintext kernel.
+                    collected.sort { $0.0 < $1.0 }
+                    return collected.map(\.1)
+                }
                 return try await Scheme.rotateColumnsAndSumAsync(
                     innerProductsToAdd,
                     by: -bsgs.babyStep,
