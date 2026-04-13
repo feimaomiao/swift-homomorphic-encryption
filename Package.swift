@@ -72,6 +72,10 @@ let package = Package(
         .library(
             name: "CTPrivateNearestNeighbourSearch",
             targets: ["CTPrivateNearestNeighbourSearch"]),
+        .library(
+            name: "PnnsFFI",
+            type: .static,
+            targets: ["PnnsFFI"]),
         .executable(name: "CTPNNSProcessDatabase", targets: ["CTPNNSProcessDatabase"]),
         .library(name: "ApplicationProtobuf", targets: ["ApplicationProtobuf"]),
         .library(name: "_TestUtilities", targets: ["_TestUtilities"]),
@@ -152,10 +156,22 @@ let package = Package(
             ],
             swiftSettings: librarySettings),
         .target(
+            name: "PnnsFFI",
+            dependencies: [
+                "HomomorphicEncryption",
+                "HomomorphicEncryptionProtobuf",
+                "PrivateNearestNeighborSearch",
+                "CTPrivateNearestNeighbourSearch",
+                "ApplicationProtobuf",
+                .product(name: "SwiftProtobuf", package: "swift-protobuf"),
+            ],
+            swiftSettings: librarySettings),
+        .target(
             name: "ApplicationProtobuf",
             dependencies: ["HomomorphicEncryptionProtobuf",
                            "PrivateInformationRetrieval",
                            "PrivateNearestNeighborSearch",
+                           "CTPrivateNearestNeighbourSearch",
                            .product(name: "SwiftProtobuf", package: "swift-protobuf")],
             exclude: ["generated/README.md", "protobuf_module_mappings.txtpb"],
             swiftSettings: librarySettings),

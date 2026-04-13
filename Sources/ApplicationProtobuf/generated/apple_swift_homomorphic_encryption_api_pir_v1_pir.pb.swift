@@ -22,7 +22,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#if canImport(FoundationEssentials)
+public import FoundationEssentials
+#else
 public import Foundation
+#endif
 public import SwiftProtobuf
 
 public import HomomorphicEncryptionProtobuf
@@ -54,31 +58,31 @@ public struct Apple_SwiftHomomorphicEncryption_Api_Pir_V1_PIRShardConfig: Sendab
 
   /// Unique identifier for the shard.
   public var shardID: String {
-    get {return _shardID ?? String()}
+    get {_shardID ?? String()}
     set {_shardID = newValue}
   }
   /// Returns true if `shardID` has been explicitly set.
-  public var hasShardID: Bool {return self._shardID != nil}
+  public var hasShardID: Bool {self._shardID != nil}
   /// Clears the value of `shardID`. Subsequent reads from it will return its default value.
   public mutating func clearShardID() {self._shardID = nil}
 
   /// Whether to compress vectorized PIR response.
   public var compressVectorizedPirResponse: Bool {
-    get {return _compressVectorizedPirResponse ?? false}
+    get {_compressVectorizedPirResponse ?? false}
     set {_compressVectorizedPirResponse = newValue}
   }
   /// Returns true if `compressVectorizedPirResponse` has been explicitly set.
-  public var hasCompressVectorizedPirResponse: Bool {return self._compressVectorizedPirResponse != nil}
+  public var hasCompressVectorizedPirResponse: Bool {self._compressVectorizedPirResponse != nil}
   /// Clears the value of `compressVectorizedPirResponse`. Subsequent reads from it will return its default value.
   public mutating func clearCompressVectorizedPirResponse() {self._compressVectorizedPirResponse = nil}
 
   /// The additional "batching" introduced in vectorized pir to accommodate large entry size.
   public var vectorizedPirInternalBatchingSize: UInt64 {
-    get {return _vectorizedPirInternalBatchingSize ?? 0}
+    get {_vectorizedPirInternalBatchingSize ?? 0}
     set {_vectorizedPirInternalBatchingSize = newValue}
   }
   /// Returns true if `vectorizedPirInternalBatchingSize` has been explicitly set.
-  public var hasVectorizedPirInternalBatchingSize: Bool {return self._vectorizedPirInternalBatchingSize != nil}
+  public var hasVectorizedPirInternalBatchingSize: Bool {self._vectorizedPirInternalBatchingSize != nil}
   /// Clears the value of `vectorizedPirInternalBatchingSize`. Subsequent reads from it will return its default value.
   public mutating func clearVectorizedPirInternalBatchingSize() {self._vectorizedPirInternalBatchingSize = nil}
 
@@ -99,76 +103,76 @@ public struct Apple_SwiftHomomorphicEncryption_Api_Pir_V1_PIRConfig: @unchecked 
 
   /// Encryption parameters.
   public var encryptionParameters: HomomorphicEncryptionProtobuf.Apple_SwiftHomomorphicEncryption_V1_EncryptionParameters {
-    get {return _storage._encryptionParameters ?? HomomorphicEncryptionProtobuf.Apple_SwiftHomomorphicEncryption_V1_EncryptionParameters()}
+    get {_storage._encryptionParameters ?? HomomorphicEncryptionProtobuf.Apple_SwiftHomomorphicEncryption_V1_EncryptionParameters()}
     set {_uniqueStorage()._encryptionParameters = newValue}
   }
   /// Returns true if `encryptionParameters` has been explicitly set.
-  public var hasEncryptionParameters: Bool {return _storage._encryptionParameters != nil}
+  public var hasEncryptionParameters: Bool {_storage._encryptionParameters != nil}
   /// Clears the value of `encryptionParameters`. Subsequent reads from it will return its default value.
   public mutating func clearEncryptionParameters() {_uniqueStorage()._encryptionParameters = nil}
 
   /// Configuration for each shard; can be overridden by `pir_shard_configs` (field 10).
   public var shardConfigs: [Apple_SwiftHomomorphicEncryption_Api_Pir_V1_PIRShardConfig] {
-    get {return _storage._shardConfigs}
+    get {_storage._shardConfigs}
     set {_uniqueStorage()._shardConfigs = newValue}
   }
 
   /// Parameters specific to KeywordPIR.
   public var keywordPirParams: Apple_SwiftHomomorphicEncryption_Pir_V1_KeywordPirParameters {
-    get {return _storage._keywordPirParams ?? Apple_SwiftHomomorphicEncryption_Pir_V1_KeywordPirParameters()}
+    get {_storage._keywordPirParams ?? Apple_SwiftHomomorphicEncryption_Pir_V1_KeywordPirParameters()}
     set {_uniqueStorage()._keywordPirParams = newValue}
   }
   /// Returns true if `keywordPirParams` has been explicitly set.
-  public var hasKeywordPirParams: Bool {return _storage._keywordPirParams != nil}
+  public var hasKeywordPirParams: Bool {_storage._keywordPirParams != nil}
   /// Clears the value of `keywordPirParams`. Subsequent reads from it will return its default value.
   public mutating func clearKeywordPirParams() {_uniqueStorage()._keywordPirParams = nil}
 
   /// Server-side PIR algorithm.
   public var algorithm: Apple_SwiftHomomorphicEncryption_Pir_V1_PirAlgorithm {
-    get {return _storage._algorithm}
+    get {_storage._algorithm}
     set {_uniqueStorage()._algorithm = newValue}
   }
 
   /// Maximum number of queries allowed in a single request.
   public var batchSize: UInt64 {
-    get {return _storage._batchSize}
+    get {_storage._batchSize}
     set {_uniqueStorage()._batchSize = newValue}
   }
 
   /// Hash of EvaluationKeyConfig.
   public var evaluationKeyConfigHash: Data {
-    get {return _storage._evaluationKeyConfigHash}
+    get {_storage._evaluationKeyConfigHash}
     set {_uniqueStorage()._evaluationKeyConfigHash = newValue}
   }
 
   /// Configuration for each shard; overrides `shard_configs` (field 2).
   public var pirShardConfigs: Apple_SwiftHomomorphicEncryption_Api_Pir_V1_PIRShardConfigs {
-    get {return _storage._pirShardConfigs ?? Apple_SwiftHomomorphicEncryption_Api_Pir_V1_PIRShardConfigs()}
+    get {_storage._pirShardConfigs ?? Apple_SwiftHomomorphicEncryption_Api_Pir_V1_PIRShardConfigs()}
     set {_uniqueStorage()._pirShardConfigs = newValue}
   }
   /// Returns true if `pirShardConfigs` has been explicitly set.
-  public var hasPirShardConfigs: Bool {return _storage._pirShardConfigs != nil}
+  public var hasPirShardConfigs: Bool {_storage._pirShardConfigs != nil}
   /// Clears the value of `pirShardConfigs`. Subsequent reads from it will return its default value.
   public mutating func clearPirShardConfigs() {_uniqueStorage()._pirShardConfigs = nil}
 
   /// Whether to encode the entry size as part of the Index PIR response.
   public var encodingEntrySize: Bool {
-    get {return _storage._encodingEntrySize ?? false}
+    get {_storage._encodingEntrySize ?? false}
     set {_uniqueStorage()._encodingEntrySize = newValue}
   }
   /// Returns true if `encodingEntrySize` has been explicitly set.
-  public var hasEncodingEntrySize: Bool {return _storage._encodingEntrySize != nil}
+  public var hasEncodingEntrySize: Bool {_storage._encodingEntrySize != nil}
   /// Clears the value of `encodingEntrySize`. Subsequent reads from it will return its default value.
   public mutating func clearEncodingEntrySize() {_uniqueStorage()._encodingEntrySize = nil}
 
   /// Additional user config. This field is purely to allow users conveniently attach their own config with CipherML's such
   /// that they don't need to build their own config service.
   public var customConfig: SwiftProtobuf.Google_Protobuf_Any {
-    get {return _storage._customConfig ?? SwiftProtobuf.Google_Protobuf_Any()}
+    get {_storage._customConfig ?? SwiftProtobuf.Google_Protobuf_Any()}
     set {_uniqueStorage()._customConfig = newValue}
   }
   /// Returns true if `customConfig` has been explicitly set.
-  public var hasCustomConfig: Bool {return _storage._customConfig != nil}
+  public var hasCustomConfig: Bool {_storage._customConfig != nil}
   /// Clears the value of `customConfig`. Subsequent reads from it will return its default value.
   public mutating func clearCustomConfig() {_uniqueStorage()._customConfig = nil}
 
@@ -217,11 +221,11 @@ public struct Apple_SwiftHomomorphicEncryption_Api_Pir_V1_PIRFixedShardConfig: S
 
   /// Shard configuration for all the shards.
   public var shardConfig: Apple_SwiftHomomorphicEncryption_Api_Pir_V1_PIRShardConfig {
-    get {return _shardConfig ?? Apple_SwiftHomomorphicEncryption_Api_Pir_V1_PIRShardConfig()}
+    get {_shardConfig ?? Apple_SwiftHomomorphicEncryption_Api_Pir_V1_PIRShardConfig()}
     set {_shardConfig = newValue}
   }
   /// Returns true if `shardConfig` has been explicitly set.
-  public var hasShardConfig: Bool {return self._shardConfig != nil}
+  public var hasShardConfig: Bool {self._shardConfig != nil}
   /// Clears the value of `shardConfig`. Subsequent reads from it will return its default value.
   public mutating func clearShardConfig() {self._shardConfig = nil}
 
@@ -246,21 +250,21 @@ public struct Apple_SwiftHomomorphicEncryption_Api_Pir_V1_PIRRequest: Sendable {
 
   /// Encrypted query.
   public var query: Apple_SwiftHomomorphicEncryption_Pir_V1_EncryptedIndices {
-    get {return _query ?? Apple_SwiftHomomorphicEncryption_Pir_V1_EncryptedIndices()}
+    get {_query ?? Apple_SwiftHomomorphicEncryption_Pir_V1_EncryptedIndices()}
     set {_query = newValue}
   }
   /// Returns true if `query` has been explicitly set.
-  public var hasQuery: Bool {return self._query != nil}
+  public var hasQuery: Bool {self._query != nil}
   /// Clears the value of `query`. Subsequent reads from it will return its default value.
   public mutating func clearQuery() {self._query = nil}
 
   /// Evaluation key metadata.
   public var evaluationKeyMetadata: Apple_SwiftHomomorphicEncryption_Api_Shared_V1_EvaluationKeyMetadata {
-    get {return _evaluationKeyMetadata ?? Apple_SwiftHomomorphicEncryption_Api_Shared_V1_EvaluationKeyMetadata()}
+    get {_evaluationKeyMetadata ?? Apple_SwiftHomomorphicEncryption_Api_Shared_V1_EvaluationKeyMetadata()}
     set {_evaluationKeyMetadata = newValue}
   }
   /// Returns true if `evaluationKeyMetadata` has been explicitly set.
-  public var hasEvaluationKeyMetadata: Bool {return self._evaluationKeyMetadata != nil}
+  public var hasEvaluationKeyMetadata: Bool {self._evaluationKeyMetadata != nil}
   /// Clears the value of `evaluationKeyMetadata`. Subsequent reads from it will return its default value.
   public mutating func clearEvaluationKeyMetadata() {self._evaluationKeyMetadata = nil}
 
@@ -269,21 +273,21 @@ public struct Apple_SwiftHomomorphicEncryption_Api_Pir_V1_PIRRequest: Sendable {
 
   /// If set, route request to a shard with this `shard_id` instead of `shard_index`.
   public var shardID: String {
-    get {return _shardID ?? String()}
+    get {_shardID ?? String()}
     set {_shardID = newValue}
   }
   /// Returns true if `shardID` has been explicitly set.
-  public var hasShardID: Bool {return self._shardID != nil}
+  public var hasShardID: Bool {self._shardID != nil}
   /// Clears the value of `shardID`. Subsequent reads from it will return its default value.
   public mutating func clearShardID() {self._shardID = nil}
 
   /// If set, evaluation key to query with. Will override evaluation key stored server-side.
   public var evaluationKey: Apple_SwiftHomomorphicEncryption_Api_Shared_V1_EvaluationKey {
-    get {return _evaluationKey ?? Apple_SwiftHomomorphicEncryption_Api_Shared_V1_EvaluationKey()}
+    get {_evaluationKey ?? Apple_SwiftHomomorphicEncryption_Api_Shared_V1_EvaluationKey()}
     set {_evaluationKey = newValue}
   }
   /// Returns true if `evaluationKey` has been explicitly set.
-  public var hasEvaluationKey: Bool {return self._evaluationKey != nil}
+  public var hasEvaluationKey: Bool {self._evaluationKey != nil}
   /// Clears the value of `evaluationKey`. Subsequent reads from it will return its default value.
   public mutating func clearEvaluationKey() {self._evaluationKey = nil}
 
@@ -308,11 +312,11 @@ public struct Apple_SwiftHomomorphicEncryption_Api_Pir_V1_PIRResponse: Sendable 
 
   /// Stash of entries with the most recent updates that have not yet reached the processed database.
   public var stash: Apple_SwiftHomomorphicEncryption_Api_Pir_V1_StashOfEntries {
-    get {return _stash ?? Apple_SwiftHomomorphicEncryption_Api_Pir_V1_StashOfEntries()}
+    get {_stash ?? Apple_SwiftHomomorphicEncryption_Api_Pir_V1_StashOfEntries()}
     set {_stash = newValue}
   }
   /// Returns true if `stash` has been explicitly set.
-  public var hasStash: Bool {return self._stash != nil}
+  public var hasStash: Bool {self._stash != nil}
   /// Clears the value of `stash`. Subsequent reads from it will return its default value.
   public mutating func clearStash() {self._stash = nil}
 

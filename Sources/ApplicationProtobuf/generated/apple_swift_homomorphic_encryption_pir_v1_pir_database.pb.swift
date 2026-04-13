@@ -22,7 +22,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#if canImport(FoundationEssentials)
+public import FoundationEssentials
+#else
 public import Foundation
+#endif
 public import SwiftProtobuf
 
 // If the compiler emits an error on this type, it is because this file

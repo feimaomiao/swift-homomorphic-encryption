@@ -8,7 +8,7 @@
 // For information on using the generated types, please see the documentation:
 //   https://github.com/apple/swift-protobuf/
 
-// Copyright 2024-2025 Apple Inc. and the Swift Homomorphic Encryption project authors
+// Copyright 2024-2026 Apple Inc. and the Swift Homomorphic Encryption project authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,21 +42,21 @@ public struct Apple_SwiftHomomorphicEncryption_Pnns_V1_ServerConfig: @unchecked 
 
   /// Configuration shared with the client.
   public var clientConfig: Apple_SwiftHomomorphicEncryption_Pnns_V1_ClientConfig {
-    get {return _storage._clientConfig ?? Apple_SwiftHomomorphicEncryption_Pnns_V1_ClientConfig()}
+    get {_storage._clientConfig ?? Apple_SwiftHomomorphicEncryption_Pnns_V1_ClientConfig()}
     set {_uniqueStorage()._clientConfig = newValue}
   }
   /// Returns true if `clientConfig` has been explicitly set.
-  public var hasClientConfig: Bool {return _storage._clientConfig != nil}
+  public var hasClientConfig: Bool {_storage._clientConfig != nil}
   /// Clears the value of `clientConfig`. Subsequent reads from it will return its default value.
   public mutating func clearClientConfig() {_uniqueStorage()._clientConfig = nil}
 
   /// Packing for the plaintext database.
   public var databasePacking: Apple_SwiftHomomorphicEncryption_Pnns_V1_MatrixPacking {
-    get {return _storage._databasePacking ?? Apple_SwiftHomomorphicEncryption_Pnns_V1_MatrixPacking()}
+    get {_storage._databasePacking ?? Apple_SwiftHomomorphicEncryption_Pnns_V1_MatrixPacking()}
     set {_uniqueStorage()._databasePacking = newValue}
   }
   /// Returns true if `databasePacking` has been explicitly set.
-  public var hasDatabasePacking: Bool {return _storage._databasePacking != nil}
+  public var hasDatabasePacking: Bool {_storage._databasePacking != nil}
   /// Clears the value of `databasePacking`. Subsequent reads from it will return its default value.
   public mutating func clearDatabasePacking() {_uniqueStorage()._databasePacking = nil}
 

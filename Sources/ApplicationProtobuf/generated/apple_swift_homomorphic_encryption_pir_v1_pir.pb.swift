@@ -22,7 +22,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#if canImport(FoundationEssentials)
+public import FoundationEssentials
+#else
 public import Foundation
+#endif
 public import SwiftProtobuf
 
 public import HomomorphicEncryptionProtobuf
@@ -132,73 +136,73 @@ public struct Apple_SwiftHomomorphicEncryption_Pir_V1_PirParameters: @unchecked 
 
   /// Encryption parameters.
   public var encryptionParameters: HomomorphicEncryptionProtobuf.Apple_SwiftHomomorphicEncryption_V1_EncryptionParameters {
-    get {return _storage._encryptionParameters ?? HomomorphicEncryptionProtobuf.Apple_SwiftHomomorphicEncryption_V1_EncryptionParameters()}
+    get {_storage._encryptionParameters ?? HomomorphicEncryptionProtobuf.Apple_SwiftHomomorphicEncryption_V1_EncryptionParameters()}
     set {_uniqueStorage()._encryptionParameters = newValue}
   }
   /// Returns true if `encryptionParameters` has been explicitly set.
-  public var hasEncryptionParameters: Bool {return _storage._encryptionParameters != nil}
+  public var hasEncryptionParameters: Bool {_storage._encryptionParameters != nil}
   /// Clears the value of `encryptionParameters`. Subsequent reads from it will return its default value.
   public mutating func clearEncryptionParameters() {_uniqueStorage()._encryptionParameters = nil}
 
   /// Number of entries in the database.
   public var numEntries: UInt64 {
-    get {return _storage._numEntries}
+    get {_storage._numEntries}
     set {_uniqueStorage()._numEntries = newValue}
   }
 
   /// Size in bytes of entries in the database.
   public var entrySize: UInt64 {
-    get {return _storage._entrySize}
+    get {_storage._entrySize}
     set {_uniqueStorage()._entrySize = newValue}
   }
 
   /// Dimensions that make up the hypercube.
   public var dimensions: [UInt64] {
-    get {return _storage._dimensions}
+    get {_storage._dimensions}
     set {_uniqueStorage()._dimensions = newValue}
   }
 
   /// Parameters specific to KeywordPIR.
   public var keywordPirParams: Apple_SwiftHomomorphicEncryption_Pir_V1_KeywordPirParameters {
-    get {return _storage._keywordPirParams ?? Apple_SwiftHomomorphicEncryption_Pir_V1_KeywordPirParameters()}
+    get {_storage._keywordPirParams ?? Apple_SwiftHomomorphicEncryption_Pir_V1_KeywordPirParameters()}
     set {_uniqueStorage()._keywordPirParams = newValue}
   }
   /// Returns true if `keywordPirParams` has been explicitly set.
-  public var hasKeywordPirParams: Bool {return _storage._keywordPirParams != nil}
+  public var hasKeywordPirParams: Bool {_storage._keywordPirParams != nil}
   /// Clears the value of `keywordPirParams`. Subsequent reads from it will return its default value.
   public mutating func clearKeywordPirParams() {_uniqueStorage()._keywordPirParams = nil}
 
   /// Server-side PIR algorithm.
   public var algorithm: Apple_SwiftHomomorphicEncryption_Pir_V1_PirAlgorithm {
-    get {return _storage._algorithm}
+    get {_storage._algorithm}
     set {_uniqueStorage()._algorithm = newValue}
   }
 
   /// Maximum number of queries allowed in a single request.
   public var batchSize: UInt64 {
-    get {return _storage._batchSize}
+    get {_storage._batchSize}
     set {_uniqueStorage()._batchSize = newValue}
   }
 
   /// Evaluation key configuration.
   public var evaluationKeyConfig: HomomorphicEncryptionProtobuf.Apple_SwiftHomomorphicEncryption_V1_EvaluationKeyConfig {
-    get {return _storage._evaluationKeyConfig ?? HomomorphicEncryptionProtobuf.Apple_SwiftHomomorphicEncryption_V1_EvaluationKeyConfig()}
+    get {_storage._evaluationKeyConfig ?? HomomorphicEncryptionProtobuf.Apple_SwiftHomomorphicEncryption_V1_EvaluationKeyConfig()}
     set {_uniqueStorage()._evaluationKeyConfig = newValue}
   }
   /// Returns true if `evaluationKeyConfig` has been explicitly set.
-  public var hasEvaluationKeyConfig: Bool {return _storage._evaluationKeyConfig != nil}
+  public var hasEvaluationKeyConfig: Bool {_storage._evaluationKeyConfig != nil}
   /// Clears the value of `evaluationKeyConfig`. Subsequent reads from it will return its default value.
   public mutating func clearEvaluationKeyConfig() {_uniqueStorage()._evaluationKeyConfig = nil}
 
   /// Key compression strategy.
   public var keyCompressionStrategy: Apple_SwiftHomomorphicEncryption_Pir_V1_KeyCompressionStrategy {
-    get {return _storage._keyCompressionStrategy}
+    get {_storage._keyCompressionStrategy}
     set {_uniqueStorage()._keyCompressionStrategy = newValue}
   }
 
   /// Whether to encode the entry size as part of the Index PIR response.
   public var encodingEntrySize: Bool {
-    get {return _storage._encodingEntrySize}
+    get {_storage._encodingEntrySize}
     set {_uniqueStorage()._encodingEntrySize = newValue}
   }
 
@@ -220,21 +224,21 @@ public struct Apple_SwiftHomomorphicEncryption_Pir_V1_KeywordPirParameters: Send
 
   /// Symmetric PIR configuration
   public var symmetricPirClientConfig: Apple_SwiftHomomorphicEncryption_Pir_V1_SymmetricPirClientConfig {
-    get {return _symmetricPirClientConfig ?? Apple_SwiftHomomorphicEncryption_Pir_V1_SymmetricPirClientConfig()}
+    get {_symmetricPirClientConfig ?? Apple_SwiftHomomorphicEncryption_Pir_V1_SymmetricPirClientConfig()}
     set {_symmetricPirClientConfig = newValue}
   }
   /// Returns true if `symmetricPirClientConfig` has been explicitly set.
-  public var hasSymmetricPirClientConfig: Bool {return self._symmetricPirClientConfig != nil}
+  public var hasSymmetricPirClientConfig: Bool {self._symmetricPirClientConfig != nil}
   /// Clears the value of `symmetricPirClientConfig`. Subsequent reads from it will return its default value.
   public mutating func clearSymmetricPirClientConfig() {self._symmetricPirClientConfig = nil}
 
   /// The sharding function to use.
   public var shardingFunction: Apple_SwiftHomomorphicEncryption_Pir_V1_PIRShardingFunction {
-    get {return _shardingFunction ?? Apple_SwiftHomomorphicEncryption_Pir_V1_PIRShardingFunction()}
+    get {_shardingFunction ?? Apple_SwiftHomomorphicEncryption_Pir_V1_PIRShardingFunction()}
     set {_shardingFunction = newValue}
   }
   /// Returns true if `shardingFunction` has been explicitly set.
-  public var hasShardingFunction: Bool {return self._shardingFunction != nil}
+  public var hasShardingFunction: Bool {self._shardingFunction != nil}
   /// Clears the value of `shardingFunction`. Subsequent reads from it will return its default value.
   public mutating func clearShardingFunction() {self._shardingFunction = nil}
 

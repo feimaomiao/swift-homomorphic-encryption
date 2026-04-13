@@ -41,7 +41,7 @@ public enum Apple_SwiftHomomorphicEncryption_Pnns_V1_DistanceMetric: SwiftProtob
   /// Cosine similarity.
   case cosineSimilarity // = 0
 
-  /// Raw dot product (no normalization).
+  /// Dot product (inner product without normalization).
   case dotProduct // = 1
   case UNRECOGNIZED(Int)
 
@@ -76,8 +76,5 @@ public enum Apple_SwiftHomomorphicEncryption_Pnns_V1_DistanceMetric: SwiftProtob
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
 
 extension Apple_SwiftHomomorphicEncryption_Pnns_V1_DistanceMetric: SwiftProtobuf._ProtoNameProviding {
-  public static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    0: .same(proto: "DISTANCE_METRIC_COSINE_SIMILARITY"),
-    1: .same(proto: "DISTANCE_METRIC_DOT_PRODUCT"),
-  ]
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0DISTANCE_METRIC_COSINE_SIMILARITY\0\u{1}DISTANCE_METRIC_DOT_PRODUCT\0")
 }

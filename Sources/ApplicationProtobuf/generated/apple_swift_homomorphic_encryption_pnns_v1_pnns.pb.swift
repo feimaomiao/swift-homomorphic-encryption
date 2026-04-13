@@ -8,7 +8,7 @@
 // For information on using the generated types, please see the documentation:
 //   https://github.com/apple/swift-protobuf/
 
-// Copyright 2024-2025 Apple Inc. and the Swift Homomorphic Encryption project authors
+// Copyright 2024-2026 Apple Inc. and the Swift Homomorphic Encryption project authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,11 +54,11 @@ public struct Apple_SwiftHomomorphicEncryption_Pnns_V1_SerializedCiphertextMatri
 
   /// Packing algorithm for the plaintext data.
   public var packing: Apple_SwiftHomomorphicEncryption_Pnns_V1_MatrixPacking {
-    get {return _packing ?? Apple_SwiftHomomorphicEncryption_Pnns_V1_MatrixPacking()}
+    get {_packing ?? Apple_SwiftHomomorphicEncryption_Pnns_V1_MatrixPacking()}
     set {_packing = newValue}
   }
   /// Returns true if `packing` has been explicitly set.
-  public var hasPacking: Bool {return self._packing != nil}
+  public var hasPacking: Bool {self._packing != nil}
   /// Clears the value of `packing`. Subsequent reads from it will return its default value.
   public mutating func clearPacking() {self._packing = nil}
 
@@ -86,11 +86,11 @@ public struct Apple_SwiftHomomorphicEncryption_Pnns_V1_SerializedPlaintextMatrix
 
   /// Plaintext packing.
   public var packing: Apple_SwiftHomomorphicEncryption_Pnns_V1_MatrixPacking {
-    get {return _packing ?? Apple_SwiftHomomorphicEncryption_Pnns_V1_MatrixPacking()}
+    get {_packing ?? Apple_SwiftHomomorphicEncryption_Pnns_V1_MatrixPacking()}
     set {_packing = newValue}
   }
   /// Returns true if `packing` has been explicitly set.
-  public var hasPacking: Bool {return self._packing != nil}
+  public var hasPacking: Bool {self._packing != nil}
   /// Clears the value of `packing`. Subsequent reads from it will return its default value.
   public mutating func clearPacking() {self._packing = nil}
 
