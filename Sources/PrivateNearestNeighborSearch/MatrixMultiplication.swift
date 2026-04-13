@@ -14,7 +14,6 @@
 
 public import _HomomorphicEncryptionExtras
 public import Algorithms
-public import AsyncAlgorithms
 public import HomomorphicEncryption
 public import ModularArithmetic
 import Foundation
@@ -84,15 +83,15 @@ public enum MatrixMultiplication {
         }
         let degree = encryptionParameters.polyDegree
         let babyStepGiantStep = BabyStepGiantStep(vectorDimension: plaintextMatrixDimensions.columnCount)
-        var galoisElements = try [
-            GaloisElement.rotatingColumns(
-                by: -1,
-                degree: degree),
-            GaloisElement.rotatingColumns(
-                by: -babyStepGiantStep.babyStep,
-                degree: degree),
-            GaloisElement.swappingRows(degree: degree),
-        ]
+        // Include Galois elements for all baby-step rotations (hoisted key switching)
+        // instead of just rotation by -1. This enables parallel baby-step computation.
+        var galoisElements = [GaloisElement.swappingRows(degree: degree)]
+        for step in 1..<babyStepGiantStep.babyStep {
+            try galoisElements.append(GaloisElement.rotatingColumns(by: -step, degree: degree))
+        }
+        try galoisElements.append(GaloisElement.rotatingColumns(
+            by: -babyStepGiantStep.babyStep,
+            degree: degree))
 
         let resultColumnsPerRowCount = simdColumnCount / plaintextMatrixDimensions.rowCount
         if resultColumnsPerRowCount > 1 {
@@ -174,21 +173,29 @@ extension PlaintextMatrix {
         // We extend this basic idea using baby-step giant-step logic from Section 6.3 of
         // https://eprint.iacr.org/2018/244.pdf.
 
-        // 1) Compute v_j = theta^j(v)
-        var rotatedStates: [Scheme.CanonicalCiphertext] = []
-        rotatedStates.reserveCapacity(babyStepGiantStep.babyStep)
-
-        var state = ciphertextVector.ciphertexts[0]
-        for step in 0..<babyStepGiantStep.babyStep {
-            rotatedStates.append(state)
-            if step != babyStepGiantStep.babyStep - 1 {
-                try await state.rotateColumns(by: -1, using: evaluationKey)
+        // 1) Compute v_j = theta^j(v) using hoisted key switching.
+        // Precompute the digit decomposition of polys[1] once, then apply all
+        // baby-step rotations from the original ciphertext.
+        let originalCiphertext = ciphertextVector.ciphertexts[0]
+        let decomposition = try Scheme.decomposeForKeySwitching(
+            context: context,
+            target: originalCiphertext.polys[1])
+        let babyStepCount = babyStepGiantStep.babyStep
+        let rotatedCiphertexts: [Scheme.EvalCiphertext] = try await parallelMap(
+            count: babyStepCount)
+        { step in
+            if step == 0 {
+                return try await originalCiphertext.convertToEvalFormat()
             }
+            let element = try GaloisElement.rotatingColumns(by: -step, degree: context.degree)
+            var rotated = originalCiphertext
+            try Scheme.applyGaloisHoisted(
+                ciphertext: &rotated,
+                element: element,
+                decomposition: decomposition,
+                using: evaluationKey)
+            return try await rotated.convertToEvalFormat()
         }
-        let rotatedCiphertexts: [Scheme.EvalCiphertext] = try await .init(
-            rotatedStates.async.map { state in
-                try await state.convertToEvalFormat()
-            })
 
         let resultCiphertextCount = dimensions.rowCount.dividingCeil(context.degree, variableTime: true)
 
@@ -200,9 +207,10 @@ extension PlaintextMatrix {
                 let plaintextRowIndices = (0..<plaintextCount).map { j in
                     resultCiphertextCount * (j + babyStepGiantStep.babyStep * giantStepIndex) + resultCiphertextIndex
                 }
-                let plaintextRows: [Plaintext<Scheme, Eval>] = try await .init(plaintextRowIndices.async.map { index in
+                // Plaintexts are already in Eval format from ProcessedDatabase — convertToEvalFormat is a no-op.
+                let plaintextRows: [Plaintext<Scheme, Eval>] = try plaintextRowIndices.map { index in
                     try plaintexts[index].convertToEvalFormat()
-                })
+                }
 
                 let ciphertexts = rotatedCiphertexts[0..<plaintextRows.count]
 
@@ -211,18 +219,22 @@ extension PlaintextMatrix {
                 return try await innerProduct.convertToCanonicalFormat()
             }
 
-        return try await .init((0..<resultCiphertextCount).async
-            .map { resultCiphertextIndex in
-                let giantStepIndices = (0..<babyStepGiantStep.giantStep)
-                let innerProductsToAdd: [Scheme.CanonicalCiphertext] = try await .init(giantStepIndices.async
-                    .map { giantStepIndex in
-                        try await generateInnerProduct(giantStepIndex, resultCiphertextIndex)
-                    })
-                return try await Scheme.rotateColumnsAndSumAsync(
-                    innerProductsToAdd,
-                    by: -babyStepGiantStep.babyStep,
-                    using: evaluationKey)
-            })
+        // Parallelize giant-step inner products (independent per giantStepIndex)
+        return try await parallelMap(count: resultCiphertextCount) { resultCiphertextIndex in
+            let giantStepCount = babyStepGiantStep.giantStep
+            // Sort ascending by giantStepIndex: rotateColumnsAndSumAsync is order-sensitive.
+            // The i-th element is rotated by (count-1-i)*step, so this must match
+            // the original sequential giant-step loop order (0, 1, ..., giantStep-1).
+            let innerProductsToAdd: [Scheme.CanonicalCiphertext] = try await parallelMap(
+                count: giantStepCount)
+            { giantStepIndex in
+                try await generateInnerProduct(giantStepIndex, resultCiphertextIndex)
+            }
+            return try await Scheme.rotateColumnsAndSumAsync(
+                innerProductsToAdd,
+                by: -babyStepGiantStep.babyStep,
+                using: evaluationKey)
+        }
     }
 
     /// Computes matrix product between the `PlaintextMatrix` and transpose of row vectors encrypted in `matrix`.
@@ -255,37 +267,46 @@ extension PlaintextMatrix {
             throw PnnsError.incorrectSimdRowsCount(got: simdDimensions.rowCount, expected: 2)
         }
 
-        let innerProductsChunked: [[Scheme.CanonicalCiphertext]] = try await .init((0..<ciphertextMatrix.rowCount).async
-            .map { rowIndex in
-                let ciphertextRow = try await ciphertextMatrix.extractDenseRow(
-                    rowIndex: rowIndex,
-                    evaluationKey: evaluationKey)
-                return try await mulTranspose(vector: ciphertextRow, using: evaluationKey)
-            })
+        let rowCount = ciphertextMatrix.rowCount
+        let innerProductsChunked: [[Scheme.CanonicalCiphertext]] = try await parallelMap(
+            count: rowCount)
+        { rowIndex in
+            let ciphertextRow = try await ciphertextMatrix.extractDenseRow(
+                rowIndex: rowIndex,
+                evaluationKey: evaluationKey)
+            return try await self.mulTranspose(vector: ciphertextRow, using: evaluationKey)
+        }
         var innerProducts: [Scheme.CanonicalCiphertext] = innerProductsChunked.flatMap(\.self)
 
         // Pack resulting ciphertexts such that no two result ciphertexts span multiple simd rows.
         let columnsPerSimdRowCount = simdColumnCount / dimensions.rowCount
         if columnsPerSimdRowCount > 0 {
             let columnsPerCiphertextCount = simdRowCount * columnsPerSimdRowCount
-            let packedCiphertexts: [Scheme.CanonicalCiphertext] = try await .init(innerProducts
-                .chunks(ofCount: columnsPerCiphertextCount).async
-                .map { columnsForCiphertext in
-                    let packedRows: [Scheme.CanonicalCiphertext] = try await .init(columnsForCiphertext
-                        .chunks(ofCount: columnsPerSimdRowCount).async.map { columnsForRow in
-                            try await Scheme.rotateColumnsAndSumAsync(
-                                Array(columnsForRow),
-                                by: dimensions.rowCount,
-                                using: evaluationKey)
-                        })
-                    if columnsForCiphertext.count > columnsPerSimdRowCount {
-                        return try await Scheme.swapRowsAndAddAsync(
-                            swapping: packedRows[1],
-                            addingTo: packedRows[0],
-                            using: evaluationKey)
-                    }
-                    return packedRows[0]
-                })
+            let chunks = Array(innerProducts.chunks(ofCount: columnsPerCiphertextCount))
+            let chunkCount = chunks.count
+            let packedCiphertexts: [Scheme.CanonicalCiphertext] = try await parallelMap(
+                count: chunkCount)
+            { chunkIndex in
+                let columnsForCiphertext = chunks[chunkIndex]
+                let rowChunks = Array(columnsForCiphertext.chunks(ofCount: columnsPerSimdRowCount))
+                let packedRows: [Scheme.CanonicalCiphertext] = try await parallelMap(
+                    count: rowChunks.count)
+                { rowIndex in
+                    try await Scheme.rotateColumnsAndSumAsync(
+                        Array(rowChunks[rowIndex]),
+                        by: dimensions.rowCount,
+                        using: evaluationKey)
+                }
+                if columnsForCiphertext.count > columnsPerSimdRowCount {
+                    precondition(packedRows.count >= 2,
+                                 "Expected >= 2 packed rows when count exceeds columnsPerSimdRowCount")
+                    return try await Scheme.swapRowsAndAddAsync(
+                        swapping: packedRows[1],
+                        addingTo: packedRows[0],
+                        using: evaluationKey)
+                }
+                return packedRows[0]
+            }
             innerProducts = packedCiphertexts
         }
         let resultMatrixDimensions = try MatrixDimensions(

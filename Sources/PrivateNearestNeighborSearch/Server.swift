@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-public import AsyncAlgorithms
 public import HomomorphicEncryption
 
 /// Private nearest neighbor server.
@@ -76,23 +75,22 @@ public struct Server<Scheme: HeScheme>: Sendable {
                 got: query.ciphertextMatrices.count,
                 expected: database.plaintextMatrices.count))
         }
-        let asyncCiphertextMatrices: [CiphertextMatrix<Scheme, Scheme.CanonicalCiphertextFormat>] =
-            try await .init(query.ciphertextMatrices.async.map { try $0.convertToCanonicalFormat() })
-        let asyncPlaintextMatrices: [PlaintextMatrix<Scheme, Eval>] = database.plaintextMatrices
-        let responseMatrices: [CiphertextMatrix<Scheme, Coeff>] = try await .init(zip(
-            asyncCiphertextMatrices,
-            asyncPlaintextMatrices)
-            .async.map { ciphertextMatrix, plaintextMatrix in
-                var responseMatrix = try await plaintextMatrix.mulTranspose(
-                    matrix: ciphertextMatrix,
-                    using: evaluationKey)
-                if modSwitchDown {
-                    // Reduce response size by mod-switching to a single modulus.
-                    // Only safe when the response will be decrypted directly (no further additions).
-                    try await responseMatrix.modSwitchDownToSingle()
-                }
-                return try await responseMatrix.convertToCoeffFormat()
-            })
+        let ciphertextMatrixCount = query.ciphertextMatrices.count
+        let responseMatrices: [CiphertextMatrix<Scheme, Coeff>] = try await parallelMap(
+            count: ciphertextMatrixCount)
+        { index in
+            let ciphertextMatrix = try await query.ciphertextMatrices[index].convertToCanonicalFormat()
+            let plaintextMatrix = database.plaintextMatrices[index]
+            var responseMatrix = try await plaintextMatrix.mulTranspose(
+                matrix: ciphertextMatrix,
+                using: evaluationKey)
+            if modSwitchDown {
+                // Reduce response size by mod-switching to a single modulus.
+                // Only safe when the response will be decrypted directly (no further additions).
+                try await responseMatrix.modSwitchDownToSingle()
+            }
+            return try await responseMatrix.convertToCoeffFormat()
+        }
 
         return Response(
             ciphertextMatrices: responseMatrices,

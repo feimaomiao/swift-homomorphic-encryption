@@ -1,4 +1,4 @@
-// Copyright 2024-2025 Apple Inc. and the Swift Homomorphic Encryption project authors
+// Copyright 2024-2026 Apple Inc. and the Swift Homomorphic Encryption project authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -156,4 +156,33 @@ package func fixedPointCosineSimilarityError(innerDimension _: Int, scalingFacto
     // With scaling factor 10, 0.45 would round to 0.50, for error 0.05
     let scaleAndRoundError = 1.0 / Float(2 * scalingFactor)
     return pow(1 + scaleAndRoundError, 2) - 1.0
+}
+
+/// Runs indexed async tasks in parallel and returns results in original order.
+///
+/// Each task receives its index and produces a value. Results are collected and
+/// sorted by index so the output array preserves the input ordering.
+/// - Parameters:
+///   - count: Number of tasks to spawn.
+///   - body: Closure that takes an index and returns a `Sendable` value.
+/// - Returns: An array of results ordered by index.
+@inlinable
+package func parallelMap<T: Sendable>(
+    count: Int,
+    body: @escaping @Sendable (Int) async throws -> T) async throws -> [T]
+{
+    try await withThrowingTaskGroup(of: (Int, T).self) { group in
+        for index in 0..<count {
+            group.addTask {
+                let value = try await body(index)
+                return (index, value)
+            }
+        }
+        var results = [(Int, T)]()
+        results.reserveCapacity(count)
+        for try await result in group {
+            results.append(result)
+        }
+        return results.sorted { $0.0 < $1.0 }.map(\.1)
+    }
 }

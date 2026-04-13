@@ -937,6 +937,35 @@ public protocol HeScheme: Sendable {
         element: Int,
         using key: EvaluationKey) async throws
 
+    /// Precomputes digit decomposition for hoisted key switching.
+    ///
+    /// When applying multiple Galois automorphisms to the same ciphertext, the decomposition
+    /// of `polys[1]` can be shared. Call this once, then use ``applyGaloisHoisted`` for each
+    /// automorphism.
+    /// - Parameters:
+    ///   - context: HE context.
+    ///   - target: The polynomial to decompose (typically `ciphertext.polys[1]`).
+    /// - Returns: Precomputed decomposition.
+    /// - Throws: Error upon failure.
+    static func decomposeForKeySwitching(
+        context: Context,
+        target: PolyRq<Scalar, CanonicalCiphertextFormat>) throws -> KeySwitchDecomposition<Scalar>
+
+    /// Applies a Galois automorphism using a precomputed key-switching decomposition.
+    ///
+    /// Faster than ``applyGalois`` when applying multiple automorphisms to the same ciphertext.
+    /// - Parameters:
+    ///   - ciphertext: Ciphertext to transform.
+    ///   - element: Galois element.
+    ///   - decomposition: Precomputed decomposition from ``decomposeForKeySwitching``.
+    ///   - evaluationKey: Evaluation key.
+    /// - Throws: Error upon failure.
+    static func applyGaloisHoisted(
+        ciphertext: inout CanonicalCiphertext,
+        element: Int,
+        decomposition: KeySwitchDecomposition<Scalar>,
+        using evaluationKey: EvaluationKey) throws
+
     /// Relinearizes a ciphertext.
     ///
     /// Relinearization reduces the number of polynomials in a ciphertext after ciphertext-ciphertext multiplication.
@@ -1052,6 +1081,28 @@ extension HeScheme {
         for index in ciphertext.polys.indices {
             try ciphertext.polys[index].multiplyPowerOfX(power)
         }
+    }
+}
+
+extension HeScheme {
+    /// Default implementation: returns a dummy decomposition.
+    @inlinable
+    public static func decomposeForKeySwitching(
+        context _: Context,
+        target _: PolyRq<Scalar, CanonicalCiphertextFormat>) throws -> KeySwitchDecomposition<Scalar>
+    {
+        KeySwitchDecomposition(nttDigits: [], degree: 0, decomposeModuliCount: 0, rnsModuliCount: 0)
+    }
+
+    /// Default implementation: falls back to non-hoisted ``applyGalois``.
+    @inlinable
+    public static func applyGaloisHoisted(
+        ciphertext: inout CanonicalCiphertext,
+        element: Int,
+        decomposition _: KeySwitchDecomposition<Scalar>,
+        using evaluationKey: EvaluationKey) throws
+    {
+        try applyGalois(ciphertext: &ciphertext, element: element, using: evaluationKey)
     }
 }
 

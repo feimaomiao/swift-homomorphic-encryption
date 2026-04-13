@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-public import AsyncAlgorithms
 public import HomomorphicEncryption
 public import ModularArithmetic
 
@@ -168,9 +167,15 @@ extension CiphertextMatrix {
             // swiftlint:disable:next force_cast
             return self as! CiphertextMatrix<Scheme, Eval>
         }
-        let evalCiphertexts: [Ciphertext<Scheme, Eval>] = try await .init(ciphertexts.async.map { ciphertext in
-            try await ciphertext.convertToEvalFormat()
-        })
+        if ciphertexts.count == 1 {
+            return try await CiphertextMatrix<Scheme, Eval>(
+                dimensions: dimensions,
+                packing: packing,
+                ciphertexts: [ciphertexts[0].convertToEvalFormat()])
+        }
+        let evalCiphertexts = try await parallelMap(count: ciphertexts.count) { index in
+            try await ciphertexts[index].convertToEvalFormat()
+        }
         return try CiphertextMatrix<Scheme, Eval>(
             dimensions: dimensions,
             packing: packing,
@@ -200,9 +205,16 @@ extension CiphertextMatrix {
             // swiftlint:disable:next force_cast
             return self as! CiphertextMatrix<Scheme, Coeff>
         }
-        let coeffCiphertexts: [Ciphertext<Scheme, Coeff>] = try await .init(ciphertexts.async.map { ciphertext in
-            try ciphertext.convertToCoeffFormat()
-        })
+        if ciphertexts.count == 1 {
+            let coeff: Ciphertext<Scheme, Coeff> = try await ciphertexts[0].convertToCoeffFormat()
+            return try CiphertextMatrix<Scheme, Coeff>(
+                dimensions: dimensions,
+                packing: packing,
+                ciphertexts: [coeff])
+        }
+        let coeffCiphertexts = try await parallelMap(count: ciphertexts.count) { index in
+            try ciphertexts[index].convertToCoeffFormat()
+        }
         return try CiphertextMatrix<Scheme, Coeff>(
             dimensions: dimensions,
             packing: packing,
@@ -245,8 +257,18 @@ extension CiphertextMatrix {
     /// - Throws: Error upon failure to modulus switch.
     @inlinable
     public mutating func modSwitchDownToSingle() async throws where Format == Scheme.CanonicalCiphertextFormat {
-        for index in ciphertexts.indices {
-            try await ciphertexts[index].modSwitchDownToSingle()
+        let count = ciphertexts.count
+        if count <= 1 {
+            for index in ciphertexts.indices {
+                try await ciphertexts[index].modSwitchDownToSingle()
+            }
+        } else {
+            let snapshot = ciphertexts
+            ciphertexts = try await parallelMap(count: count) { index in
+                var ct = snapshot[index]
+                try await ct.modSwitchDownToSingle()
+                return ct
+            }
         }
     }
 }
@@ -383,7 +405,7 @@ extension CiphertextMatrix {
         // Replicate the values across one SIMD row by rotating and adding.
         let rotateCount = simdColumnCount / (copiesInMask * columnCountPowerOfTwo) - 1
         var ciphertextCopyRight = ciphertext
-        for await _ in (0..<rotateCount).async {
+        for _ in 0..<rotateCount {
             try await ciphertextCopyRight.rotateColumns(by: columnCountPowerOfTwo, using: evaluationKey)
             try await ciphertext += ciphertextCopyRight
         }
