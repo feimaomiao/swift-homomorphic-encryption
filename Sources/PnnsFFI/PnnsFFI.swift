@@ -71,6 +71,10 @@ private struct PnnsCtx<Scheme: HeScheme>: @unchecked Sendable {
     let clientConfig: ClientConfig<Scheme>
     let serverConfig: ServerConfig<Scheme>
     let client: Client<Scheme>
+    // Eval-key configs for the two kernels kept separate so the caller can
+    // choose the right bundle per backend (PT-only shards vs a CT LB).
+    let ptEvalKeyConfig: EvaluationKeyConfig
+    let ctEvalKeyConfig: EvaluationKeyConfig
 }
 
 /// Run an async closure synchronously (blocking the current thread).
@@ -140,11 +144,21 @@ private func makeCtx<Scheme: HeScheme>(
     let dbDimensions = try MatrixDimensions(
         rowCount: databaseRowCount,
         columnCount: vectorDimension)
-    let evalKeyConfig = try CosineSimilarity.evaluationKeyConfig(
+    // Union the PT and CT kernel eval-key requirements so a single context
+    // (and a single EvaluationKey) drives both pipelines. The CT kernel
+    // contributes the relinearization key; the PT kernel already uses the
+    // same Galois elements, so the union is effectively `ct ∪ pt`.
+    let ptConfig = try CosineSimilarity.evaluationKeyConfig(
         plaintextMatrixDimensions: dbDimensions,
         maxQueryCount: 1,
         encryptionParameters: params,
         scheme: Scheme.self)
+    let ctConfig = try CTMatrixMultiplication.evaluationKeyConfig(
+        plaintextMatrixDimensions: dbDimensions,
+        maxQueryCount: 1,
+        encryptionParameters: params,
+        scheme: Scheme.self)
+    let evalKeyConfig = [ptConfig, ctConfig].union()
 
     let clientConfig = try ClientConfig<Scheme>(
         encryptionParameters: params,
@@ -165,7 +179,9 @@ private func makeCtx<Scheme: HeScheme>(
         context: context,
         clientConfig: clientConfig,
         serverConfig: serverConfig,
-        client: client)
+        client: client,
+        ptEvalKeyConfig: ptConfig,
+        ctEvalKeyConfig: ctConfig)
 }
 
 // MARK: - Scalar detection
@@ -212,6 +228,8 @@ public func pnns64Keygen(ctxPtr: UnsafeRawPointer) -> UnsafeMutableRawPointer? {
 }
 
 /// Generate an evaluation key. Returns opaque handle.
+/// Generate an evaluation key covering both the PT and CT kernels (union of
+/// their requirements). Use this when one key needs to serve both pipelines.
 @_cdecl("pnns64_gen_eval_key")
 public func pnns64GenEvalKey(
     ctxPtr: UnsafeRawPointer,
@@ -224,6 +242,44 @@ public func pnns64GenEvalKey(
         return box(evalKey)
     } catch {
         print("[pnns64] gen_eval_key error: \(error)")
+        return nil
+    }
+}
+
+/// Generate an evaluation key sized for the PT kernel only (no relinearization
+/// key). Smaller to serialize and ship to shards that only run `pnns_compute`.
+@_cdecl("pnns64_gen_eval_key_pt")
+public func pnns64GenEvalKeyPt(
+    ctxPtr: UnsafeRawPointer,
+    skPtr: UnsafeRawPointer) -> UnsafeMutableRawPointer?
+{
+    let ctx = unbox(ctxPtr, as: PnnsCtx<Bfv<UInt64>>.self)
+    let sk = unbox(skPtr, as: SecretKey<Bfv<UInt64>>.self)
+    do {
+        let evalKey = try ctx.context.generateEvaluationKey(
+            config: ctx.ptEvalKeyConfig, using: sk)
+        return box(evalKey)
+    } catch {
+        print("[pnns64] gen_eval_key_pt error: \(error)")
+        return nil
+    }
+}
+
+/// Generate an evaluation key sized for the CT kernel (includes a
+/// relinearization key). Ship to the server running `ctpnns_compute`.
+@_cdecl("pnns64_gen_eval_key_ct")
+public func pnns64GenEvalKeyCt(
+    ctxPtr: UnsafeRawPointer,
+    skPtr: UnsafeRawPointer) -> UnsafeMutableRawPointer?
+{
+    let ctx = unbox(ctxPtr, as: PnnsCtx<Bfv<UInt64>>.self)
+    let sk = unbox(skPtr, as: SecretKey<Bfv<UInt64>>.self)
+    do {
+        let evalKey = try ctx.context.generateEvaluationKey(
+            config: ctx.ctEvalKeyConfig, using: sk)
+        return box(evalKey)
+    } catch {
+        print("[pnns64] gen_eval_key_ct error: \(error)")
         return nil
     }
 }
@@ -540,6 +596,7 @@ public func pnns32Keygen(ctxPtr: UnsafeRawPointer) -> UnsafeMutableRawPointer? {
     }
 }
 
+/// See `pnns64_gen_eval_key`.
 @_cdecl("pnns32_gen_eval_key")
 public func pnns32GenEvalKey(
     ctxPtr: UnsafeRawPointer,
@@ -552,6 +609,42 @@ public func pnns32GenEvalKey(
         return box(evalKey)
     } catch {
         print("[pnns32] gen_eval_key error: \(error)")
+        return nil
+    }
+}
+
+/// See `pnns64_gen_eval_key_pt`.
+@_cdecl("pnns32_gen_eval_key_pt")
+public func pnns32GenEvalKeyPt(
+    ctxPtr: UnsafeRawPointer,
+    skPtr: UnsafeRawPointer) -> UnsafeMutableRawPointer?
+{
+    let ctx = unbox(ctxPtr, as: PnnsCtx<Bfv<UInt32>>.self)
+    let sk = unbox(skPtr, as: SecretKey<Bfv<UInt32>>.self)
+    do {
+        let evalKey = try ctx.context.generateEvaluationKey(
+            config: ctx.ptEvalKeyConfig, using: sk)
+        return box(evalKey)
+    } catch {
+        print("[pnns32] gen_eval_key_pt error: \(error)")
+        return nil
+    }
+}
+
+/// See `pnns64_gen_eval_key_ct`.
+@_cdecl("pnns32_gen_eval_key_ct")
+public func pnns32GenEvalKeyCt(
+    ctxPtr: UnsafeRawPointer,
+    skPtr: UnsafeRawPointer) -> UnsafeMutableRawPointer?
+{
+    let ctx = unbox(ctxPtr, as: PnnsCtx<Bfv<UInt32>>.self)
+    let sk = unbox(skPtr, as: SecretKey<Bfv<UInt32>>.self)
+    do {
+        let evalKey = try ctx.context.generateEvaluationKey(
+            config: ctx.ctEvalKeyConfig, using: sk)
+        return box(evalKey)
+    } catch {
+        print("[pnns32] gen_eval_key_ct error: \(error)")
         return nil
     }
 }
@@ -1364,64 +1457,86 @@ public func ctpnns32LoadServerWithConfig(
 
 // MARK: - Response aggregation
 
-/// Homomorphically aggregate an array of Response<Bfv<UInt64>> handles into a
-/// single Response handle. `responses` is a C array of opaque response pointers
-/// of length `count`. Returns NULL on error (empty array, dimension mismatch).
+private func responseAggregate<Scheme: HeScheme>(
+    _: Scheme.Type,
+    responses: UnsafePointer<UnsafeRawPointer?>,
+    count: Int,
+    modSwitchDown: Int32,
+    tag: String) -> UnsafeMutableRawPointer?
+{
+    guard count > 0 else {
+        print("[\(tag)] response_aggregate: empty input")
+        return nil
+    }
+    var collected: [Response<Scheme>] = []
+    collected.reserveCapacity(count)
+    for i in 0..<count {
+        guard let p = responses[i] else {
+            print("[\(tag)] response_aggregate: NULL at index \(i)")
+            return nil
+        }
+        collected.append(unbox(p, as: Response<Scheme>.self))
+    }
+    do {
+        let aggregated = try Response<Scheme>.aggregate(collected)
+        if modSwitchDown == 0 {
+            return box(aggregated)
+        }
+        // Aggregate-and-decrypt path: after HE-adding, switch each matrix down
+        // to a single modulus so `client.decrypt` can consume it. Mirrors the
+        // production pattern in Tests/PrivateNearestNeighborSearchTests/DotProductTests.swift.
+        let sendableAggregated = SendableValue(aggregated)
+        guard let switched: Response<Scheme> = runBlocking({
+            let agg = sendableAggregated.value
+            var switchedMatrices: [CiphertextMatrix<Scheme, Coeff>] = []
+            switchedMatrices.reserveCapacity(agg.ciphertextMatrices.count)
+            for matrix in agg.ciphertextMatrices {
+                var canonical = try await matrix.convertToCanonicalFormat()
+                try await canonical.modSwitchDownToSingle()
+                try await switchedMatrices.append(canonical.convertToCoeffFormat())
+            }
+            return Response(
+                ciphertextMatrices: switchedMatrices,
+                entryIds: agg.entryIds,
+                entryMetadatas: agg.entryMetadatas)
+        }) else { return nil }
+        return box(switched)
+    } catch {
+        print("[\(tag)] response_aggregate error: \(error)")
+        return nil
+    }
+}
+
+/// Homomorphically aggregate an array of Response handles into a single
+/// Response handle. `responses` is a C array of opaque response pointers of
+/// length `count`. When `modSwitchDown` is nonzero, the aggregated response
+/// is mod-switched down to a single modulus so it can be fed directly to
+/// `pnns{64,32}_decrypt`. Pass 0 if you intend to chain more aggregations
+/// before decryption.
+///
 /// The returned handle must be freed with `pnns_free_handle`. Input handles
 /// are not consumed.
 @_cdecl("pnns64_response_aggregate")
 public func pnns64ResponseAggregate(
     responses: UnsafePointer<UnsafeRawPointer?>,
-    count: Int) -> UnsafeMutableRawPointer?
+    count: Int,
+    modSwitchDown: Int32) -> UnsafeMutableRawPointer?
 {
-    guard count > 0 else {
-        print("[pnns64] response_aggregate: empty input")
-        return nil
-    }
-    var collected: [Response<Bfv<UInt64>>] = []
-    collected.reserveCapacity(count)
-    for i in 0..<count {
-        guard let p = responses[i] else {
-            print("[pnns64] response_aggregate: NULL at index \(i)")
-            return nil
-        }
-        collected.append(unbox(p, as: Response<Bfv<UInt64>>.self))
-    }
-    do {
-        let aggregated = try Response<Bfv<UInt64>>.aggregate(collected)
-        return box(aggregated)
-    } catch {
-        print("[pnns64] response_aggregate error: \(error)")
-        return nil
-    }
+    responseAggregate(Bfv<UInt64>.self,
+                      responses: responses, count: count,
+                      modSwitchDown: modSwitchDown, tag: "pnns64")
 }
 
 /// See `pnns64_response_aggregate`.
 @_cdecl("pnns32_response_aggregate")
 public func pnns32ResponseAggregate(
     responses: UnsafePointer<UnsafeRawPointer?>,
-    count: Int) -> UnsafeMutableRawPointer?
+    count: Int,
+    modSwitchDown: Int32) -> UnsafeMutableRawPointer?
 {
-    guard count > 0 else {
-        print("[pnns32] response_aggregate: empty input")
-        return nil
-    }
-    var collected: [Response<Bfv<UInt32>>] = []
-    collected.reserveCapacity(count)
-    for i in 0..<count {
-        guard let p = responses[i] else {
-            print("[pnns32] response_aggregate: NULL at index \(i)")
-            return nil
-        }
-        collected.append(unbox(p, as: Response<Bfv<UInt32>>.self))
-    }
-    do {
-        let aggregated = try Response<Bfv<UInt32>>.aggregate(collected)
-        return box(aggregated)
-    } catch {
-        print("[pnns32] response_aggregate error: \(error)")
-        return nil
-    }
+    responseAggregate(Bfv<UInt32>.self,
+                      responses: responses, count: count,
+                      modSwitchDown: modSwitchDown, tag: "pnns32")
 }
 
 // MARK: - Memory management
