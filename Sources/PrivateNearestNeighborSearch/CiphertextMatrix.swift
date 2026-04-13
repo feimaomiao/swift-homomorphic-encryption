@@ -24,16 +24,16 @@ public struct CiphertextMatrix<Scheme: HeScheme, Format: PolyFormat>: Equatable,
     @usableFromInline package let dimensions: MatrixDimensions
 
     /// Dimensions of the scalar matrix in a SIMD-encoded plaintext.
-    @usableFromInline let simdDimensions: SimdEncodingDimensions
+    @usableFromInline package let simdDimensions: SimdEncodingDimensions
 
     /// Plaintext packing with which the data is stored.
-    @usableFromInline let packing: MatrixPacking
+    @usableFromInline package let packing: MatrixPacking
 
     /// Encrypted data.
     @usableFromInline package var ciphertexts: [Ciphertext<Scheme, Format>]
 
     /// The parameter context.
-    @usableFromInline var context: Scheme.Context {
+    @usableFromInline package var context: Scheme.Context {
         precondition(!ciphertexts.isEmpty, "Ciphertext array cannot be empty")
         return ciphertexts[0].context
     }

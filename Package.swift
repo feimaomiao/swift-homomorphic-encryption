@@ -69,6 +69,10 @@ let package = Package(
         .library(
             name: "PrivateNearestNeighborSearch",
             targets: ["PrivateNearestNeighborSearch"]),
+        .library(
+            name: "CTPrivateNearestNeighbourSearch",
+            targets: ["CTPrivateNearestNeighbourSearch"]),
+        .executable(name: "CTPNNSProcessDatabase", targets: ["CTPNNSProcessDatabase"]),
         .library(name: "ApplicationProtobuf", targets: ["ApplicationProtobuf"]),
         .library(name: "_TestUtilities", targets: ["_TestUtilities"]),
         .executable(name: "PIRGenerateDatabase", targets: ["PIRGenerateDatabase"]),
@@ -138,6 +142,16 @@ let package = Package(
             ],
             swiftSettings: librarySettings),
         .target(
+            name: "CTPrivateNearestNeighbourSearch",
+            dependencies: [
+                .product(name: "Algorithms", package: "swift-algorithms"),
+                .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
+                "HomomorphicEncryption",
+                "_HomomorphicEncryptionExtras",
+                "PrivateNearestNeighborSearch",
+            ],
+            swiftSettings: librarySettings),
+        .target(
             name: "ApplicationProtobuf",
             dependencies: ["HomomorphicEncryptionProtobuf",
                            "PrivateInformationRetrieval",
@@ -199,6 +213,18 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
             ],
             swiftSettings: executableSettings),
+        .executableTarget(
+            name: "CTPNNSProcessDatabase",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                "CTPrivateNearestNeighbourSearch",
+                "PrivateNearestNeighborSearch",
+                "HomomorphicEncryption",
+                "HomomorphicEncryptionProtobuf",
+                "ApplicationProtobuf",
+                .product(name: "Logging", package: "swift-log"),
+            ],
+            swiftSettings: executableSettings),
         .testTarget(
             name: "HomomorphicEncryptionTests",
             dependencies: [
@@ -237,6 +263,16 @@ let package = Package(
             name: "PrivateNearestNeighborSearchTests",
             dependencies: [
                 "PrivateNearestNeighborSearch", "HomomorphicEncryption", "_TestUtilities",
+            ], swiftSettings: executableSettings),
+        .testTarget(
+            name: "CTPrivateNearestNeighbourSearchTests",
+            dependencies: [
+                "CTPrivateNearestNeighbourSearch",
+                "PrivateNearestNeighborSearch",
+                "HomomorphicEncryption",
+                "HomomorphicEncryptionProtobuf",
+                "ApplicationProtobuf",
+                "_TestUtilities",
             ], swiftSettings: executableSettings),
         .testTarget(
             name: "ApplicationProtobufTests",
