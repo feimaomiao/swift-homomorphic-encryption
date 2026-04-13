@@ -74,7 +74,7 @@ let package = Package(
             targets: ["CTPrivateNearestNeighbourSearch"]),
         .library(
             name: "PnnsFFI",
-            type: .static,
+            type: .dynamic,
             targets: ["PnnsFFI"]),
         .executable(name: "CTPNNSProcessDatabase", targets: ["CTPNNSProcessDatabase"]),
         .library(name: "ApplicationProtobuf", targets: ["ApplicationProtobuf"]),
