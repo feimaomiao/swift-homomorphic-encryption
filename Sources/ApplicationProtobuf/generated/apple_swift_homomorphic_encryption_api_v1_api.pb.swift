@@ -8,7 +8,7 @@
 // For information on using the generated types, please see the documentation:
 //   https://github.com/apple/swift-protobuf/
 
-// Copyright 2024-2025 Apple Inc. and the Swift Homomorphic Encryption project authors
+// Copyright 2024-2026 Apple Inc. and the Swift Homomorphic Encryption project authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#if canImport(FoundationEssentials)
+public import FoundationEssentials
+#else
 public import Foundation
+#endif
 public import SwiftProtobuf
 
 // If the compiler emits an error on this type, it is because this file
@@ -323,11 +327,11 @@ public struct Apple_SwiftHomomorphicEncryption_Api_V1_Error: Sendable {
 
     /// ConfigResponse that client should use for subsequent requests.
     public var configResponse: Apple_SwiftHomomorphicEncryption_Api_V1_ConfigResponse {
-      get {return _configResponse ?? Apple_SwiftHomomorphicEncryption_Api_V1_ConfigResponse()}
+      get {_configResponse ?? Apple_SwiftHomomorphicEncryption_Api_V1_ConfigResponse()}
       set {_configResponse = newValue}
     }
     /// Returns true if `configResponse` has been explicitly set.
-    public var hasConfigResponse: Bool {return self._configResponse != nil}
+    public var hasConfigResponse: Bool {self._configResponse != nil}
     /// Clears the value of `configResponse`. Subsequent reads from it will return its default value.
     public mutating func clearConfigResponse() {self._configResponse = nil}
 

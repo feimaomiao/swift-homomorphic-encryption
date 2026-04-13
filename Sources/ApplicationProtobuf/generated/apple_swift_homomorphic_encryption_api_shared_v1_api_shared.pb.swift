@@ -8,7 +8,7 @@
 // For information on using the generated types, please see the documentation:
 //   https://github.com/apple/swift-protobuf/
 
-// Copyright 2024-2025 Apple Inc. and the Swift Homomorphic Encryption project authors
+// Copyright 2024-2026 Apple Inc. and the Swift Homomorphic Encryption project authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#if canImport(FoundationEssentials)
+public import FoundationEssentials
+#else
 public import Foundation
+#endif
 public import SwiftProtobuf
 
 public import HomomorphicEncryptionProtobuf
@@ -65,11 +69,11 @@ public struct Apple_SwiftHomomorphicEncryption_Api_Shared_V1_KeyStatus: Sendable
 
   /// Configuration for the key.
   public var keyConfig: HomomorphicEncryptionProtobuf.Apple_SwiftHomomorphicEncryption_V1_EvaluationKeyConfig {
-    get {return _keyConfig ?? HomomorphicEncryptionProtobuf.Apple_SwiftHomomorphicEncryption_V1_EvaluationKeyConfig()}
+    get {_keyConfig ?? HomomorphicEncryptionProtobuf.Apple_SwiftHomomorphicEncryption_V1_EvaluationKeyConfig()}
     set {_keyConfig = newValue}
   }
   /// Returns true if `keyConfig` has been explicitly set.
-  public var hasKeyConfig: Bool {return self._keyConfig != nil}
+  public var hasKeyConfig: Bool {self._keyConfig != nil}
   /// Clears the value of `keyConfig`. Subsequent reads from it will return its default value.
   public mutating func clearKeyConfig() {self._keyConfig = nil}
 
@@ -102,21 +106,21 @@ public struct Apple_SwiftHomomorphicEncryption_Api_Shared_V1_EvaluationKey: Send
 
   /// Metadata for the key.
   public var metadata: Apple_SwiftHomomorphicEncryption_Api_Shared_V1_EvaluationKeyMetadata {
-    get {return _metadata ?? Apple_SwiftHomomorphicEncryption_Api_Shared_V1_EvaluationKeyMetadata()}
+    get {_metadata ?? Apple_SwiftHomomorphicEncryption_Api_Shared_V1_EvaluationKeyMetadata()}
     set {_metadata = newValue}
   }
   /// Returns true if `metadata` has been explicitly set.
-  public var hasMetadata: Bool {return self._metadata != nil}
+  public var hasMetadata: Bool {self._metadata != nil}
   /// Clears the value of `metadata`. Subsequent reads from it will return its default value.
   public mutating func clearMetadata() {self._metadata = nil}
 
   /// Evaluation key.
   public var evaluationKey: HomomorphicEncryptionProtobuf.Apple_SwiftHomomorphicEncryption_V1_SerializedEvaluationKey {
-    get {return _evaluationKey ?? HomomorphicEncryptionProtobuf.Apple_SwiftHomomorphicEncryption_V1_SerializedEvaluationKey()}
+    get {_evaluationKey ?? HomomorphicEncryptionProtobuf.Apple_SwiftHomomorphicEncryption_V1_SerializedEvaluationKey()}
     set {_evaluationKey = newValue}
   }
   /// Returns true if `evaluationKey` has been explicitly set.
-  public var hasEvaluationKey: Bool {return self._evaluationKey != nil}
+  public var hasEvaluationKey: Bool {self._evaluationKey != nil}
   /// Clears the value of `evaluationKey`. Subsequent reads from it will return its default value.
   public mutating func clearEvaluationKey() {self._evaluationKey = nil}
 

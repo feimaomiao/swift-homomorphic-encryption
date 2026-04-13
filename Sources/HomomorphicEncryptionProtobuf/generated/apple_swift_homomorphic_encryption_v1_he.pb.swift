@@ -8,7 +8,7 @@
 // For information on using the generated types, please see the documentation:
 //   https://github.com/apple/swift-protobuf/
 
-// Copyright 2024-2025 Apple Inc. and the Swift Homomorphic Encryption project authors
+// Copyright 2024-2026 Apple Inc. and the Swift Homomorphic Encryption project authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#if canImport(FoundationEssentials)
+public import FoundationEssentials
+#else
 public import Foundation
+#endif
 public import SwiftProtobuf
 
 // If the compiler emits an error on this type, it is because this file
@@ -239,11 +243,11 @@ public struct Apple_SwiftHomomorphicEncryption_V1_SerializedKeySwitchKey: Sendab
 
   /// The key-switching key.
   public var keySwitchKey: Apple_SwiftHomomorphicEncryption_V1_SerializedCiphertextVec {
-    get {return _keySwitchKey ?? Apple_SwiftHomomorphicEncryption_V1_SerializedCiphertextVec()}
+    get {_keySwitchKey ?? Apple_SwiftHomomorphicEncryption_V1_SerializedCiphertextVec()}
     set {_keySwitchKey = newValue}
   }
   /// Returns true if `keySwitchKey` has been explicitly set.
-  public var hasKeySwitchKey: Bool {return self._keySwitchKey != nil}
+  public var hasKeySwitchKey: Bool {self._keySwitchKey != nil}
   /// Clears the value of `keySwitchKey`. Subsequent reads from it will return its default value.
   public mutating func clearKeySwitchKey() {self._keySwitchKey = nil}
 
@@ -276,11 +280,11 @@ public struct Apple_SwiftHomomorphicEncryption_V1_SerializedRelinKey: Sendable {
 
   /// The relinearization key.
   public var relinKey: Apple_SwiftHomomorphicEncryption_V1_SerializedKeySwitchKey {
-    get {return _relinKey ?? Apple_SwiftHomomorphicEncryption_V1_SerializedKeySwitchKey()}
+    get {_relinKey ?? Apple_SwiftHomomorphicEncryption_V1_SerializedKeySwitchKey()}
     set {_relinKey = newValue}
   }
   /// Returns true if `relinKey` has been explicitly set.
-  public var hasRelinKey: Bool {return self._relinKey != nil}
+  public var hasRelinKey: Bool {self._relinKey != nil}
   /// Clears the value of `relinKey`. Subsequent reads from it will return its default value.
   public mutating func clearRelinKey() {self._relinKey = nil}
 
@@ -313,21 +317,21 @@ public struct Apple_SwiftHomomorphicEncryption_V1_SerializedEvaluationKey: Senda
 
   /// The Galois key.
   public var galoisKey: Apple_SwiftHomomorphicEncryption_V1_SerializedGaloisKey {
-    get {return _galoisKey ?? Apple_SwiftHomomorphicEncryption_V1_SerializedGaloisKey()}
+    get {_galoisKey ?? Apple_SwiftHomomorphicEncryption_V1_SerializedGaloisKey()}
     set {_galoisKey = newValue}
   }
   /// Returns true if `galoisKey` has been explicitly set.
-  public var hasGaloisKey: Bool {return self._galoisKey != nil}
+  public var hasGaloisKey: Bool {self._galoisKey != nil}
   /// Clears the value of `galoisKey`. Subsequent reads from it will return its default value.
   public mutating func clearGaloisKey() {self._galoisKey = nil}
 
   /// The relinearization key.
   public var relinKey: Apple_SwiftHomomorphicEncryption_V1_SerializedRelinKey {
-    get {return _relinKey ?? Apple_SwiftHomomorphicEncryption_V1_SerializedRelinKey()}
+    get {_relinKey ?? Apple_SwiftHomomorphicEncryption_V1_SerializedRelinKey()}
     set {_relinKey = newValue}
   }
   /// Returns true if `relinKey` has been explicitly set.
-  public var hasRelinKey: Bool {return self._relinKey != nil}
+  public var hasRelinKey: Bool {self._relinKey != nil}
   /// Clears the value of `relinKey`. Subsequent reads from it will return its default value.
   public mutating func clearRelinKey() {self._relinKey = nil}
 
@@ -347,11 +351,11 @@ public struct Apple_SwiftHomomorphicEncryption_V1_EvaluationKeyConfig: Sendable 
 
   /// Encryption parameters.
   public var encryptionParameters: Apple_SwiftHomomorphicEncryption_V1_EncryptionParameters {
-    get {return _encryptionParameters ?? Apple_SwiftHomomorphicEncryption_V1_EncryptionParameters()}
+    get {_encryptionParameters ?? Apple_SwiftHomomorphicEncryption_V1_EncryptionParameters()}
     set {_encryptionParameters = newValue}
   }
   /// Returns true if `encryptionParameters` has been explicitly set.
-  public var hasEncryptionParameters: Bool {return self._encryptionParameters != nil}
+  public var hasEncryptionParameters: Bool {self._encryptionParameters != nil}
   /// Clears the value of `encryptionParameters`. Subsequent reads from it will return its default value.
   public mutating func clearEncryptionParameters() {self._encryptionParameters = nil}
 

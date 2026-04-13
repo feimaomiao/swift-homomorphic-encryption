@@ -1,4 +1,4 @@
-// Copyright 2025 Apple Inc. and the Swift Homomorphic Encryption project authors
+// Copyright 2025-2026 Apple Inc. and the Swift Homomorphic Encryption project authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -74,14 +74,20 @@ extension PrivateNearestNeighborSearchUtil {
                     packing: .diagonal(babyStepGiantStep: babyStepGiantStep),
                     values: plaintextRows.flatMap(\.self))
 
-                let evaluationKeyConfig = try EvaluationKeyConfig(galoisElements: [
-                    GaloisElement.rotatingColumns(
-                        by: -1,
-                        degree: encryptionParameters.polyDegree),
-                    GaloisElement.rotatingColumns(
-                        by: -babyStepGiantStep.babyStep,
-                        degree: encryptionParameters.polyDegree),
-                ], hasRelinearizationKey: false)
+                // mulTranspose uses hoisted key switching, which needs a Galois element
+                // for every baby-step rotation `-step` in `1..<babyStep`, plus the
+                // giant-step rotation `-babyStep`. Mirrors `MatrixMultiplication.evaluationKeyConfig`.
+                let degree = encryptionParameters.polyDegree
+                var galoisElements: [Int] = []
+                for step in 1..<babyStepGiantStep.babyStep {
+                    try galoisElements.append(GaloisElement.rotatingColumns(by: -step, degree: degree))
+                }
+                try galoisElements.append(GaloisElement.rotatingColumns(
+                    by: -babyStepGiantStep.babyStep,
+                    degree: degree))
+                let evaluationKeyConfig = EvaluationKeyConfig(
+                    galoisElements: galoisElements,
+                    hasRelinearizationKey: false)
 
                 let evaluationKey = try context.generateEvaluationKey(
                     config: evaluationKeyConfig,

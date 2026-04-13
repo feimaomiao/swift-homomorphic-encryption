@@ -8,7 +8,7 @@
 // For information on using the generated types, please see the documentation:
 //   https://github.com/apple/swift-protobuf/
 
-// Copyright 2024-2025 Apple Inc. and the Swift Homomorphic Encryption project authors
+// Copyright 2024-2026 Apple Inc. and the Swift Homomorphic Encryption project authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -147,11 +147,11 @@ public struct Apple_SwiftHomomorphicEncryption_Pnns_V1_MatrixPackingDiagonal: Se
 
   /// Diagonals are rotated according to the baby-step, giant-step algorithm from Section 6.3 of <https://eprint.iacr.org/2018/244.pdf>.
   public var babyStepGiantStep: Apple_SwiftHomomorphicEncryption_Pnns_V1_BabyStepGiantStep {
-    get {return _babyStepGiantStep ?? Apple_SwiftHomomorphicEncryption_Pnns_V1_BabyStepGiantStep()}
+    get {_babyStepGiantStep ?? Apple_SwiftHomomorphicEncryption_Pnns_V1_BabyStepGiantStep()}
     set {_babyStepGiantStep = newValue}
   }
   /// Returns true if `babyStepGiantStep` has been explicitly set.
-  public var hasBabyStepGiantStep: Bool {return self._babyStepGiantStep != nil}
+  public var hasBabyStepGiantStep: Bool {self._babyStepGiantStep != nil}
   /// Clears the value of `babyStepGiantStep`. Subsequent reads from it will return its default value.
   public mutating func clearBabyStepGiantStep() {self._babyStepGiantStep = nil}
 

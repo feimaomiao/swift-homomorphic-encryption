@@ -8,7 +8,7 @@
 // For information on using the generated types, please see the documentation:
 //   https://github.com/apple/swift-protobuf/
 
-// Copyright 2024-2025 Apple Inc. and the Swift Homomorphic Encryption project authors
+// Copyright 2024-2026 Apple Inc. and the Swift Homomorphic Encryption project authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -44,11 +44,11 @@ public struct Apple_SwiftHomomorphicEncryption_Pnns_V1_ClientConfig: Sendable {
 
   /// Encryption parameters.
   public var encryptionParameters: HomomorphicEncryptionProtobuf.Apple_SwiftHomomorphicEncryption_V1_EncryptionParameters {
-    get {return _encryptionParameters ?? HomomorphicEncryptionProtobuf.Apple_SwiftHomomorphicEncryption_V1_EncryptionParameters()}
+    get {_encryptionParameters ?? HomomorphicEncryptionProtobuf.Apple_SwiftHomomorphicEncryption_V1_EncryptionParameters()}
     set {_encryptionParameters = newValue}
   }
   /// Returns true if `encryptionParameters` has been explicitly set.
-  public var hasEncryptionParameters: Bool {return self._encryptionParameters != nil}
+  public var hasEncryptionParameters: Bool {self._encryptionParameters != nil}
   /// Clears the value of `encryptionParameters`. Subsequent reads from it will return its default value.
   public mutating func clearEncryptionParameters() {self._encryptionParameters = nil}
 
@@ -57,11 +57,11 @@ public struct Apple_SwiftHomomorphicEncryption_Pnns_V1_ClientConfig: Sendable {
 
   /// Packing for the query.
   public var queryPacking: Apple_SwiftHomomorphicEncryption_Pnns_V1_MatrixPacking {
-    get {return _queryPacking ?? Apple_SwiftHomomorphicEncryption_Pnns_V1_MatrixPacking()}
+    get {_queryPacking ?? Apple_SwiftHomomorphicEncryption_Pnns_V1_MatrixPacking()}
     set {_queryPacking = newValue}
   }
   /// Returns true if `queryPacking` has been explicitly set.
-  public var hasQueryPacking: Bool {return self._queryPacking != nil}
+  public var hasQueryPacking: Bool {self._queryPacking != nil}
   /// Clears the value of `queryPacking`. Subsequent reads from it will return its default value.
   public mutating func clearQueryPacking() {self._queryPacking = nil}
 
