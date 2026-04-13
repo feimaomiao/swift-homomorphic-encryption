@@ -90,9 +90,8 @@ public struct Server<Scheme: HeScheme>: Sendable {
 
     /// Creates a new ``Server``.
     /// - Parameter database: Encrypted processed database.
-    /// - Throws: Error if construction fails.
     @inlinable
-    public init(database: EncryptedProcessedDatabase<Scheme>) throws {
+    public init(database: EncryptedProcessedDatabase<Scheme>) {
         self.database = database
     }
 

@@ -28,12 +28,13 @@ extension Database {
     }
 }
 
-extension String {
-    private func validateProtoFilename(descriptor: String) throws {
-        guard hasSuffix(".txtpb") || hasSuffix(".binpb") else {
-            throw ValidationError(
-                "'\(descriptor)' must have extension '.txtpb' or '.binpb', found \(self)")
-        }
+/// Validates that `path` has the expected protobuf-serialization extension (`.txtpb` or
+/// `.binpb`). Call this on every output path before use so a misconfigured config file cannot
+/// redirect writes to arbitrary filesystem locations like `/etc/crontab`.
+private func validateProtoFilename(_ path: String, descriptor: String) throws {
+    guard path.hasSuffix(".txtpb") || path.hasSuffix(".binpb") else {
+        throw ValidationError(
+            "'\(descriptor)' must have extension '.txtpb' or '.binpb', found \(path)")
     }
 }
 
@@ -104,9 +105,13 @@ struct Arguments: Codable, Equatable, Hashable {
     let trialDistanceTolerance: Float?
 
     static func defaultJsonString(vectorDimension: Int) -> String {
-        // swiftlint:disable:next force_try
-        let resolved: ResolvedArguments = try! defaultArguments.resolve(
+        // Called from `--help` text and is strictly informational — never crash the CLI if the
+        // default arguments happen to not resolve for an unusual RLWE preset.
+        guard let resolved = try? defaultArguments.resolve(
             for: vectorDimension, scheme: Bfv<UInt64>.self)
+        else {
+            return "<default configuration unavailable for vectorDimension=\(vectorDimension)>"
+        }
         let defaults = Arguments(
             inputDatabase: resolved.inputDatabase,
             outputEncryptedDatabasePrefix: resolved.outputEncryptedDatabasePrefix,
@@ -125,8 +130,9 @@ struct Arguments: Codable, Equatable, Hashable {
             trialDistanceTolerance: resolved.trialDistanceTolerance)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        // swiftlint:disable:next force_try
-        let data = try! encoder.encode(defaults)
+        guard let data = try? encoder.encode(defaults) else {
+            return "<default configuration failed to encode>"
+        }
         // swiftlint:disable:next optional_data_string_conversion
         return String(decoding: data, as: UTF8.self)
     }
@@ -134,6 +140,16 @@ struct Arguments: Codable, Equatable, Hashable {
     func resolve<Scheme: HeScheme>(for vectorDimension: Int, scheme _: Scheme.Type) throws
         -> ResolvedArguments
     {
+        // Reject paths that don't look like protobuf artifacts before the tool writes
+        // anything to disk. `outputEncryptedDatabasePrefix` is a bare prefix (no extension)
+        // because the tool appends "-<i>.binpb" per plaintext modulus, so it's not validated
+        // here — the final path includes the suffix and will satisfy readers downstream.
+        try validateProtoFilename(inputDatabase, descriptor: "inputDatabase")
+        try validateProtoFilename(outputServerConfig, descriptor: "outputServerConfig")
+        try validateProtoFilename(outputMetadata, descriptor: "outputMetadata")
+        try validateProtoFilename(outputSecretKey, descriptor: "outputSecretKey")
+        try validateProtoFilename(outputEvaluationKey, descriptor: "outputEvaluationKey")
+
         let distanceMetric = distanceMetric ?? .cosineSimilarity
         let databasePacking = databasePacking ?? .diagonal(
             babyStepGiantStep: BabyStepGiantStep(vectorDimension: vectorDimension))
@@ -182,8 +198,11 @@ struct ResolvedArguments: CustomStringConvertible, Encodable {
     var description: String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        // swiftlint:disable:next force_try
-        let data = try! encoder.encode(self)
+        // `description` is called inside logger interpolation on every run; a JSON encoding
+        // failure should never crash the CLI — fall back to a minimal summary instead.
+        guard let data = try? encoder.encode(self) else {
+            return "ResolvedArguments(input=\(inputDatabase), rlwe=\(rlweParameters), metric=\(distanceMetric))"
+        }
         // swiftlint:disable:next optional_data_string_conversion
         return String(decoding: data, as: UTF8.self)
     }
@@ -363,9 +382,13 @@ struct ProcessDatabase: AsyncParsableCommand {
         for ct in responseCts {
             decoded += try ct.decrypt(using: secretKey).decode(format: .simd) as [Scheme.Scalar]
         }
+        guard let firstSlot = decoded.first else {
+            throw ValidationError(
+                "Trial produced no decoded slots — response had \(responseCts.count) ciphertext(s)")
+        }
         let p = queryContext.plaintextModulus
         let s2 = Float(resolved.scalingFactor) * Float(resolved.scalingFactor)
-        let selfSimilarity = Float(decoded[0].remainderToCentered(modulus: p)) / s2
+        let selfSimilarity = Float(firstSlot.remainderToCentered(modulus: p)) / s2
 
         let error = abs(selfSimilarity - 1.0)
         ProcessDatabase.logger.info(

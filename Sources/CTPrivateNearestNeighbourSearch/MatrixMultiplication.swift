@@ -12,11 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Copyright 2026 Apple Inc. and the Swift Homomorphic Encryption project authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-
 public import _HomomorphicEncryptionExtras
 public import Algorithms
 public import AsyncAlgorithms
@@ -186,6 +181,11 @@ extension CiphertextMatrix where Format == Scheme.CanonicalCiphertextFormat {
         guard ciphertextMatrix.packing == .denseRow else {
             throw CTPnnsError.wrongQueryPacking(got: ciphertextMatrix.packing)
         }
+        // BFV SIMD geometry: the polynomial ring splits into exactly 2 SIMD rows
+        // (row 0 and row 1 under the half-degree isomorphism). The repacking path below
+        // assumes `packedRows[0]` and `packedRows[1]` both exist, so anything other than
+        // 2 would make the `swapRowsAndAddAsync` branch index out of bounds. The plaintext
+        // kernel makes the same assumption — see MatrixMultiplication.swift:254.
         guard simdDimensions.rowCount == 2 else {
             throw CTPnnsError.incorrectSimdRowsCount(got: simdDimensions.rowCount, expected: 2)
         }
