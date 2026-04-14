@@ -21,6 +21,7 @@
 // swiftlint:disable function_parameter_count missing_docs
 
 import ApplicationProtobuf
+import Crypto
 import CTPrivateNearestNeighbourSearch
 import Foundation
 import HomomorphicEncryption
@@ -195,6 +196,80 @@ public func pnnsDetectScalar() -> Int32 {
     return params.supportsScalar(UInt32.self) ? 32 : 64
 }
 
+// MARK: - Deterministic RNG for `_seeded` FFI entry points
+
+/// SHA-256-counter deterministic PRNG.
+///
+/// Conforms to [`PseudoRandomNumberGenerator`](PseudoRandomNumberGenerator),
+/// the protocol the HomomorphicEncryption library's public
+/// `randomizeTernary(using:)`, `randomizeCenteredBinomialDistribution(using:)`,
+/// etc. accept. A fixed seed produces a fixed stream, which is what the
+/// `pnns*_keygen_seeded` entry points below use to generate reproducible
+/// BFV secret keys for integration tests.
+///
+/// NOT a substitute for the OS RNG in production keygen — its purpose is
+/// purely test determinism so consumers (`pnns-bridge` integration tests)
+/// don't have to commit ~85 KB of binary SK fixtures. Production callers
+/// should use the unseeded `pnns*_keygen` entry points which fall through
+/// to `SystemRandomNumberGenerator`.
+///
+/// Implementation: keystream = SHA256(seed || counter_BE), counter starts
+/// at 0 and increments on each refill. 32 bytes per block is plenty of
+/// headroom; BFV ternary sampling only needs a couple bits per coefficient.
+struct SeededRng: PseudoRandomNumberGenerator {
+    private let seed: [UInt8]
+    private var counter: UInt64 = 0
+    private var buffer: [UInt8] = []
+    private var bufferIdx: Int = 0
+
+    init(seed: [UInt8]) {
+        self.seed = seed
+    }
+
+    mutating func fill(_ bufferPointer: UnsafeMutableRawBufferPointer) {
+        var written = 0
+        while written < bufferPointer.count {
+            if bufferIdx >= buffer.count {
+                refill()
+            }
+            let take = min(buffer.count - bufferIdx, bufferPointer.count - written)
+            for k in 0..<take {
+                bufferPointer[written + k] = buffer[bufferIdx + k]
+            }
+            bufferIdx += take
+            written += take
+        }
+    }
+
+    private mutating func refill() {
+        var hasher = SHA256()
+        hasher.update(data: seed)
+        var counterBE = counter.bigEndian
+        withUnsafeBytes(of: &counterBE) { hasher.update(data: Data($0)) }
+        buffer = Array(hasher.finalize())
+        bufferIdx = 0
+        counter &+= 1
+    }
+}
+
+/// Shared implementation of seeded keygen for both scalar widths.
+/// Bypasses `Bfv.generateSecretKey(context:)` (which hardcodes
+/// `SystemRandomNumberGenerator`) by rolling the underlying
+/// `PolyRq.randomizeTernary(using:)` call against our `SeededRng`.
+/// Not `@inlinable` because `PolyRq.forwardNtt()` is `public` but not
+/// `@usableFromInline`, and Swift's inlinability rules bar
+/// `@inlinable` functions from calling un-annotated public members.
+func seededKeygen<Scheme>(
+    _ ctx: Scheme.Context,
+    seedBytes: [UInt8]) throws -> SecretKey<Scheme>
+    where Scheme.Scalar: FixedWidthInteger
+{
+    var rng = SeededRng(seed: seedBytes)
+    var s = PolyRq<Scheme.Scalar, Coeff>.zero(context: ctx.secretKeyContext)
+    s.randomizeTernary(using: &rng)
+    return try SecretKey<Scheme>(_poly: s.forwardNtt())
+}
+
 // MARK: - Bfv<UInt64> FFI
 
 /// Create context. `vector_dim` is the embedding dimension, `db_rows` is number of database vectors.
@@ -223,6 +298,26 @@ public func pnns64Keygen(ctxPtr: UnsafeRawPointer) -> UnsafeMutableRawPointer? {
         return box(sk)
     } catch {
         print("[pnns64] keygen error: \(error)")
+        return nil
+    }
+}
+
+/// Deterministic keygen for integration tests. Derives the secret key
+/// from `seed` via [`SeededRng`]; same seed → same SK every time. See
+/// `SeededRng` doc for why production callers should prefer `pnns64_keygen`.
+@_cdecl("pnns64_keygen_seeded")
+public func pnns64KeygenSeeded(
+    ctxPtr: UnsafeRawPointer,
+    seedPtr: UnsafePointer<UInt8>,
+    seedLen: Int32) -> UnsafeMutableRawPointer?
+{
+    let ctx = unbox(ctxPtr, as: PnnsCtx<Bfv<UInt64>>.self)
+    let seedBytes = Array(UnsafeBufferPointer(start: seedPtr, count: Int(seedLen)))
+    do {
+        let sk: SecretKey<Bfv<UInt64>> = try seededKeygen(ctx.context, seedBytes: seedBytes)
+        return box(sk)
+    } catch {
+        print("[pnns64] keygen_seeded error: \(error)")
         return nil
     }
 }
@@ -592,6 +687,24 @@ public func pnns32Keygen(ctxPtr: UnsafeRawPointer) -> UnsafeMutableRawPointer? {
         return box(sk)
     } catch {
         print("[pnns32] keygen error: \(error)")
+        return nil
+    }
+}
+
+/// Deterministic keygen for integration tests. See `pnns64_keygen_seeded`.
+@_cdecl("pnns32_keygen_seeded")
+public func pnns32KeygenSeeded(
+    ctxPtr: UnsafeRawPointer,
+    seedPtr: UnsafePointer<UInt8>,
+    seedLen: Int32) -> UnsafeMutableRawPointer?
+{
+    let ctx = unbox(ctxPtr, as: PnnsCtx<Bfv<UInt32>>.self)
+    let seedBytes = Array(UnsafeBufferPointer(start: seedPtr, count: Int(seedLen)))
+    do {
+        let sk: SecretKey<Bfv<UInt32>> = try seededKeygen(ctx.context, seedBytes: seedBytes)
+        return box(sk)
+    } catch {
+        print("[pnns32] keygen_seeded error: \(error)")
         return nil
     }
 }
