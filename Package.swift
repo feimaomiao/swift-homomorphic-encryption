@@ -84,6 +84,7 @@ let package = Package(
         .executable(name: "PIRShardDatabase", targets: ["PIRShardDatabase"]),
         .executable(name: "PNNSGenerateDatabase", targets: ["PNNSGenerateDatabase"]),
         .executable(name: "PNNSProcessDatabase", targets: ["PNNSProcessDatabase"]),
+        .executable(name: "PnnsRandomQueryVerify", targets: ["PnnsRandomQueryVerify"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-algorithms", from: "1.2.0"),
@@ -227,6 +228,14 @@ let package = Package(
                 "ApplicationProtobuf",
                 "HomomorphicEncryption",
                 .product(name: "Logging", package: "swift-log"),
+            ],
+            swiftSettings: executableSettings),
+        .executableTarget(
+            name: "PnnsRandomQueryVerify",
+            dependencies: [
+                "HomomorphicEncryption",
+                "ModularArithmetic",
+                "PrivateNearestNeighborSearch",
             ],
             swiftSettings: executableSettings),
         .executableTarget(
