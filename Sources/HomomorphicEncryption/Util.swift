@@ -13,7 +13,7 @@
 // limitations under the License.
 
 public import ModularArithmetic
-import Foundation
+package import Foundation
 
 extension Sequence where Element: Hashable {
     @inlinable
@@ -205,6 +205,29 @@ extension Collection where Self.Element: Sendable {
             }
             return unorderedResults
         }
+    }
+}
+
+extension JSONEncoder {
+    package static func encodeToString(
+        _ fields: some Encodable,
+        formatting: JSONEncoder.OutputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]) throws
+        -> String
+    {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = formatting
+        let data = try encoder.encode(fields)
+        guard let result = String(data: data, encoding: .utf8) else {
+            throw EncodingError.invalidValue(fields, .init(codingPath: [], debugDescription: "UTF-8 encoding failed"))
+        }
+        return result
+    }
+}
+
+extension Double {
+    package func rounded(decimalPlaces: Int, rule: FloatingPointRoundingRule = .toNearestOrAwayFromZero) -> Double {
+        let factor = Foundation.pow(10.0, Double(decimalPlaces))
+        return (self * factor).rounded(rule) / factor
     }
 }
 
