@@ -131,8 +131,10 @@ private func makeCtx<Scheme: HeScheme>(
     _: Scheme.Type,
     rlweParams: PredefinedRlweParameters,
     vectorDimension: Int,
-    databaseRowCount: Int) throws -> PnnsCtx<Scheme>
+    databaseRowCount: Int,
+    maxQueryCount: Int = 1) throws -> PnnsCtx<Scheme>
 {
+    precondition(maxQueryCount >= 1, "maxQueryCount must be at least 1")
     let params = try EncryptionParameters<Scheme.Scalar>(from: rlweParams)
     let context = try Scheme.Context(encryptionParameters: params)
 
@@ -151,12 +153,12 @@ private func makeCtx<Scheme: HeScheme>(
     // same Galois elements, so the union is effectively `ct ∪ pt`.
     let ptConfig = try CosineSimilarity.evaluationKeyConfig(
         plaintextMatrixDimensions: dbDimensions,
-        maxQueryCount: 1,
+        maxQueryCount: maxQueryCount,
         encryptionParameters: params,
         scheme: Scheme.self)
     let ctConfig = try CTMatrixMultiplication.evaluationKeyConfig(
         plaintextMatrixDimensions: dbDimensions,
-        maxQueryCount: 1,
+        maxQueryCount: maxQueryCount,
         encryptionParameters: params,
         scheme: Scheme.self)
     let evalKeyConfig = [ptConfig, ctConfig].union()
@@ -273,15 +275,18 @@ func seededKeygen<Scheme>(
 // MARK: - Bfv<UInt64> FFI
 
 /// Create context. `vector_dim` is the embedding dimension, `db_rows` is number of database vectors.
+/// `max_query_count` is the maximum number of queries in one batch (eval key is sized for this).
+/// Pass 1 for single-query mode.
 /// Returns opaque handle or NULL.
 @_cdecl("pnns64_create_context")
-public func pnns64CreateContext(vectorDim: Int32, dbRows: Int32) -> UnsafeMutableRawPointer? {
+public func pnns64CreateContext(vectorDim: Int32, dbRows: Int32, maxQueryCount: Int32) -> UnsafeMutableRawPointer? {
     do {
         let ctx = try makeCtx(
             Bfv<UInt64>.self,
             rlweParams: .n_4096_logq_27_28_28_logt_17,
             vectorDimension: Int(vectorDim),
-            databaseRowCount: Int(dbRows))
+            databaseRowCount: Int(dbRows),
+            maxQueryCount: Int(maxQueryCount))
         return box(ctx)
     } catch {
         print("[pnns64] create_context error: \(error)")
@@ -379,20 +384,24 @@ public func pnns64GenEvalKeyCt(
     }
 }
 
-/// Encrypt a query vector. `vector` points to `dim` floats. Returns opaque Query handle.
+/// Encrypt query vectors. `vectors` points to `query_count * dim` floats (row-major).
+/// `query_count` is the number of query vectors in this batch (must be <= maxQueryCount
+/// from context creation). Returns opaque Query handle.
 @_cdecl("pnns64_encrypt")
 public func pnns64Encrypt(
     ctxPtr: UnsafeRawPointer,
     skPtr: UnsafeRawPointer,
-    vector: UnsafePointer<Float>,
-    dim: Int32) -> UnsafeMutableRawPointer?
+    vectors: UnsafePointer<Float>,
+    dim: Int32,
+    queryCount: Int32) -> UnsafeMutableRawPointer?
 {
     let ctx = unbox(ctxPtr, as: PnnsCtx<Bfv<UInt64>>.self)
     let sk = unbox(skPtr, as: SecretKey<Bfv<UInt64>>.self)
     do {
-        let floats = Array(UnsafeBufferPointer(start: vector, count: Int(dim)))
-        let vectors = Array2d(data: floats, rowCount: 1, columnCount: Int(dim))
-        let query = try ctx.client.generateQuery(for: vectors, using: sk)
+        let count = Int(queryCount) * Int(dim)
+        let floats = Array(UnsafeBufferPointer(start: vectors, count: count))
+        let matrix = Array2d(data: floats, rowCount: Int(queryCount), columnCount: Int(dim))
+        let query = try ctx.client.generateQuery(for: matrix, using: sk)
         return box(query)
     } catch {
         print("[pnns64] encrypt error: \(error)")
@@ -456,8 +465,10 @@ public func pnns64Compute(
 }
 
 /// Decrypt a response. Writes distances into caller-provided buffer.
-/// `out_distances` must have space for db_rows floats.
-/// `out_entry_ids` must have space for db_rows UInt64s.
+/// `out_distances` must have space for `db_rows * query_count` floats (row-major:
+/// `out_distances[row * query_count + q]` is the distance from query `q` to database row `row`).
+/// `out_entry_ids` must have space for `db_rows` UInt64s.
+/// `out_query_count` receives the number of queries in the batch (columns in the distance matrix).
 /// Returns the number of database rows, or -1 on error.
 @_cdecl("pnns64_decrypt")
 public func pnns64Decrypt(
@@ -466,7 +477,8 @@ public func pnns64Decrypt(
     responsePtr: UnsafeRawPointer,
     outDistances: UnsafeMutablePointer<Float>,
     outEntryIds: UnsafeMutablePointer<UInt64>,
-    outLen: Int32) -> Int32
+    outLen: Int32,
+    outQueryCount: UnsafeMutablePointer<Int32>) -> Int32
 {
     let ctx = unbox(ctxPtr, as: PnnsCtx<Bfv<UInt64>>.self)
     let sk = unbox(skPtr, as: SecretKey<Bfv<UInt64>>.self)
@@ -474,14 +486,12 @@ public func pnns64Decrypt(
     do {
         let result = try ctx.client.decrypt(response: response, using: sk)
         let shape = result.distances.shape
-        let totalEntries = shape.rowCount
-        guard totalEntries <= Int(outLen) else {
-            print("[pnns64] decrypt: buffer too small (\(outLen) < \(totalEntries))")
+        let totalFloats = shape.rowCount * shape.columnCount
+        guard totalFloats <= Int(outLen) else {
+            print("[pnns64] decrypt: buffer too small (\(outLen) < \(totalFloats))")
             return -1
         }
-        // Copy distances row by row via public API
         for r in 0..<shape.rowCount {
-            // For single-query, columnCount == 1; distance is at [r, 0]
             for c in 0..<shape.columnCount {
                 outDistances[r * shape.columnCount + c] = result.distances[r, c]
             }
@@ -489,7 +499,8 @@ public func pnns64Decrypt(
         for i in 0..<min(result.entryIds.count, Int(outLen)) {
             outEntryIds[i] = result.entryIds[i]
         }
-        return Int32(totalEntries)
+        outQueryCount.pointee = Int32(shape.columnCount)
+        return Int32(shape.rowCount)
     } catch {
         print("[pnns64] decrypt error: \(error)")
         return -1
@@ -665,13 +676,14 @@ public func pnns64FastEncodeServer(
 // MARK: - Bfv<UInt32> FFI
 
 @_cdecl("pnns32_create_context")
-public func pnns32CreateContext(vectorDim: Int32, dbRows: Int32) -> UnsafeMutableRawPointer? {
+public func pnns32CreateContext(vectorDim: Int32, dbRows: Int32, maxQueryCount: Int32) -> UnsafeMutableRawPointer? {
     do {
         let ctx = try makeCtx(
             Bfv<UInt32>.self,
             rlweParams: .n_4096_logq_27_28_28_logt_17,
             vectorDimension: Int(vectorDim),
-            databaseRowCount: Int(dbRows))
+            databaseRowCount: Int(dbRows),
+            maxQueryCount: Int(maxQueryCount))
         return box(ctx)
     } catch {
         print("[pnns32] create_context error: \(error)")
@@ -766,15 +778,17 @@ public func pnns32GenEvalKeyCt(
 public func pnns32Encrypt(
     ctxPtr: UnsafeRawPointer,
     skPtr: UnsafeRawPointer,
-    vector: UnsafePointer<Float>,
-    dim: Int32) -> UnsafeMutableRawPointer?
+    vectors: UnsafePointer<Float>,
+    dim: Int32,
+    queryCount: Int32) -> UnsafeMutableRawPointer?
 {
     let ctx = unbox(ctxPtr, as: PnnsCtx<Bfv<UInt32>>.self)
     let sk = unbox(skPtr, as: SecretKey<Bfv<UInt32>>.self)
     do {
-        let floats = Array(UnsafeBufferPointer(start: vector, count: Int(dim)))
-        let vectors = Array2d(data: floats, rowCount: 1, columnCount: Int(dim))
-        let query = try ctx.client.generateQuery(for: vectors, using: sk)
+        let count = Int(queryCount) * Int(dim)
+        let floats = Array(UnsafeBufferPointer(start: vectors, count: count))
+        let matrix = Array2d(data: floats, rowCount: Int(queryCount), columnCount: Int(dim))
+        let query = try ctx.client.generateQuery(for: matrix, using: sk)
         return box(query)
     } catch {
         print("[pnns32] encrypt error: \(error)")
@@ -836,7 +850,8 @@ public func pnns32Decrypt(
     responsePtr: UnsafeRawPointer,
     outDistances: UnsafeMutablePointer<Float>,
     outEntryIds: UnsafeMutablePointer<UInt64>,
-    outLen: Int32) -> Int32
+    outLen: Int32,
+    outQueryCount: UnsafeMutablePointer<Int32>) -> Int32
 {
     let ctx = unbox(ctxPtr, as: PnnsCtx<Bfv<UInt32>>.self)
     let sk = unbox(skPtr, as: SecretKey<Bfv<UInt32>>.self)
@@ -844,9 +859,9 @@ public func pnns32Decrypt(
     do {
         let result = try ctx.client.decrypt(response: response, using: sk)
         let shape = result.distances.shape
-        let totalEntries = shape.rowCount
-        guard totalEntries <= Int(outLen) else {
-            print("[pnns32] decrypt: buffer too small (\(outLen) < \(totalEntries))")
+        let totalFloats = shape.rowCount * shape.columnCount
+        guard totalFloats <= Int(outLen) else {
+            print("[pnns32] decrypt: buffer too small (\(outLen) < \(totalFloats))")
             return -1
         }
         for r in 0..<shape.rowCount {
@@ -857,7 +872,8 @@ public func pnns32Decrypt(
         for i in 0..<min(result.entryIds.count, Int(outLen)) {
             outEntryIds[i] = result.entryIds[i]
         }
-        return Int32(totalEntries)
+        outQueryCount.pointee = Int32(shape.columnCount)
+        return Int32(shape.rowCount)
     } catch {
         print("[pnns32] decrypt error: \(error)")
         return -1
