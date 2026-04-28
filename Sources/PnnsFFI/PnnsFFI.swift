@@ -279,7 +279,9 @@ func seededKeygen<Scheme>(
 /// Pass 1 for single-query mode.
 /// Returns opaque handle or NULL.
 @_cdecl("pnns64_create_context")
-public func pnns64CreateContext(vectorDim: Int32, dbRows: Int32, maxQueryCount: Int32) -> UnsafeMutableRawPointer? {
+public func pnns64CreateContext(vectorDim: Int32, dbRows: Int32, maxQueryCount: Int32)
+    -> UnsafeMutableRawPointer?
+{
     do {
         let ctx = try makeCtx(
             Bfv<UInt64>.self,
@@ -434,10 +436,12 @@ public func pnns64CreateServer(
     let database = Database(rows: rows)
     let config = ctx.serverConfig
 
-    guard let server: PTServer<Bfv<UInt64>> = runBlocking({
-        let processed = try await database.process(config: config)
-        return try PTServer(database: processed)
-    }) else { return nil }
+    guard
+        let server: PTServer<Bfv<UInt64>> = runBlocking({
+            let processed = try await database.process(config: config)
+            return try PTServer(database: processed)
+        })
+    else { return nil }
     return box(server)
 }
 
@@ -458,9 +462,11 @@ public func pnns64Compute(
     let evalKey = unbox(evalKeyPtr, as: EvaluationKey<Bfv<UInt64>>.self)
     let mod = modSwitchDown != 0
 
-    guard let response: Response<Bfv<UInt64>> = runBlocking({
-        try await server.computeResponse(to: query, using: evalKey, modSwitchDown: mod)
-    }) else { return nil }
+    guard
+        let response: Response<Bfv<UInt64>> = runBlocking({
+            try await server.computeResponse(to: query, using: evalKey, modSwitchDown: mod)
+        })
+    else { return nil }
     return box(response)
 }
 
@@ -537,7 +543,8 @@ public func pnns64LoadServer(
 {
     let filePath = String(cString: path)
     do {
-        let proto = try Apple_SwiftHomomorphicEncryption_Pnns_V1_SerializedProcessedDatabase(from: filePath)
+        let proto = try Apple_SwiftHomomorphicEncryption_Pnns_V1_SerializedProcessedDatabase(
+            from: filePath)
         let serialized: SerializedProcessedDatabase<Bfv<UInt64>> = try proto.native()
         let processed = try ProcessedDatabase<Bfv<UInt64>>(from: serialized)
         let server = try PTServer(database: processed)
@@ -559,7 +566,8 @@ public func pnns64LoadServerWithConfig(
 {
     let filePath = String(cString: path)
     do {
-        let proto = try Apple_SwiftHomomorphicEncryption_Pnns_V1_SerializedProcessedDatabase(from: filePath)
+        let proto = try Apple_SwiftHomomorphicEncryption_Pnns_V1_SerializedProcessedDatabase(
+            from: filePath)
         let serialized: SerializedProcessedDatabase<Bfv<UInt64>> = try proto.native()
         let processed = try ProcessedDatabase<Bfv<UInt64>>(from: serialized)
         let server = try PTServer(database: processed)
@@ -676,7 +684,9 @@ public func pnns64FastEncodeServer(
 // MARK: - Bfv<UInt32> FFI
 
 @_cdecl("pnns32_create_context")
-public func pnns32CreateContext(vectorDim: Int32, dbRows: Int32, maxQueryCount: Int32) -> UnsafeMutableRawPointer? {
+public func pnns32CreateContext(vectorDim: Int32, dbRows: Int32, maxQueryCount: Int32)
+    -> UnsafeMutableRawPointer?
+{
     do {
         let ctx = try makeCtx(
             Bfv<UInt32>.self,
@@ -818,10 +828,12 @@ public func pnns32CreateServer(
     let database = Database(rows: rows)
     let config = ctx.serverConfig
 
-    guard let server: PTServer<Bfv<UInt32>> = runBlocking({
-        let processed = try await database.process(config: config)
-        return try PTServer(database: processed)
-    }) else { return nil }
+    guard
+        let server: PTServer<Bfv<UInt32>> = runBlocking({
+            let processed = try await database.process(config: config)
+            return try PTServer(database: processed)
+        })
+    else { return nil }
     return box(server)
 }
 
@@ -837,9 +849,11 @@ public func pnns32Compute(
     let evalKey = unbox(evalKeyPtr, as: EvaluationKey<Bfv<UInt32>>.self)
     let mod = modSwitchDown != 0
 
-    guard let response: Response<Bfv<UInt32>> = runBlocking({
-        try await server.computeResponse(to: query, using: evalKey, modSwitchDown: mod)
-    }) else { return nil }
+    guard
+        let response: Response<Bfv<UInt32>> = runBlocking({
+            try await server.computeResponse(to: query, using: evalKey, modSwitchDown: mod)
+        })
+    else { return nil }
     return box(response)
 }
 
@@ -904,7 +918,8 @@ public func pnns32LoadServer(
 {
     let filePath = String(cString: path)
     do {
-        let proto = try Apple_SwiftHomomorphicEncryption_Pnns_V1_SerializedProcessedDatabase(from: filePath)
+        let proto = try Apple_SwiftHomomorphicEncryption_Pnns_V1_SerializedProcessedDatabase(
+            from: filePath)
         let serialized: SerializedProcessedDatabase<Bfv<UInt32>> = try proto.native()
         let processed = try ProcessedDatabase<Bfv<UInt32>>(from: serialized)
         let server = try PTServer(database: processed)
@@ -923,7 +938,8 @@ public func pnns32LoadServerWithConfig(
 {
     let filePath = String(cString: path)
     do {
-        let proto = try Apple_SwiftHomomorphicEncryption_Pnns_V1_SerializedProcessedDatabase(from: filePath)
+        let proto = try Apple_SwiftHomomorphicEncryption_Pnns_V1_SerializedProcessedDatabase(
+            from: filePath)
         let serialized: SerializedProcessedDatabase<Bfv<UInt32>> = try proto.native()
         let processed = try ProcessedDatabase<Bfv<UInt32>>(from: serialized)
         let server = try PTServer(database: processed)
@@ -1166,7 +1182,8 @@ private func evalKeyDeserialize<Scheme: HeScheme>(
     let ctx = unbox(ctxPtr, as: PnnsCtx<Scheme>.self)
     do {
         let data = Data(bytes: UnsafeRawPointer(bytes), count: len)
-        let proto = try Apple_SwiftHomomorphicEncryption_V1_SerializedEvaluationKey(serializedBytes: data)
+        let proto = try Apple_SwiftHomomorphicEncryption_V1_SerializedEvaluationKey(
+            serializedBytes: data)
         let ek = try proto.native(context: ctx.context) as EvaluationKey<Scheme>
         return box(ek)
     } catch {
@@ -1181,8 +1198,9 @@ public func pnns64EvalKeySerialize(
     outBytes: UnsafeMutablePointer<UInt8>?,
     outCap: Int) -> Int
 {
-    evalKeySerialize(Bfv<UInt64>.self, evalKeyPtr: evalKeyPtr,
-                     outBytes: outBytes, outCap: outCap, tag: "pnns64")
+    evalKeySerialize(
+        Bfv<UInt64>.self, evalKeyPtr: evalKeyPtr,
+        outBytes: outBytes, outCap: outCap, tag: "pnns64")
 }
 
 @_cdecl("pnns64_eval_key_deserialize")
@@ -1200,8 +1218,9 @@ public func pnns32EvalKeySerialize(
     outBytes: UnsafeMutablePointer<UInt8>?,
     outCap: Int) -> Int
 {
-    evalKeySerialize(Bfv<UInt32>.self, evalKeyPtr: evalKeyPtr,
-                     outBytes: outBytes, outCap: outCap, tag: "pnns32")
+    evalKeySerialize(
+        Bfv<UInt32>.self, evalKeyPtr: evalKeyPtr,
+        outBytes: outBytes, outCap: outCap, tag: "pnns32")
 }
 
 @_cdecl("pnns32_eval_key_deserialize")
@@ -1248,7 +1267,8 @@ private func queryDeserialize<Scheme: HeScheme>(
     let ctx = unbox(ctxPtr, as: PnnsCtx<Scheme>.self)
     do {
         let data = Data(bytes: UnsafeRawPointer(bytes), count: len)
-        let env = try Apple_SwiftHomomorphicEncryption_Api_Pnns_V1_PNNSShardResponse(serializedBytes: data)
+        let env = try Apple_SwiftHomomorphicEncryption_Api_Pnns_V1_PNNSShardResponse(
+            serializedBytes: data)
         let query: Query<Scheme> = try env.reply.native(context: ctx.context)
         return box(query)
     } catch {
@@ -1263,8 +1283,9 @@ public func pnns64QuerySerialize(
     outBytes: UnsafeMutablePointer<UInt8>?,
     outCap: Int) -> Int
 {
-    querySerialize(Bfv<UInt64>.self, queryPtr: queryPtr,
-                   outBytes: outBytes, outCap: outCap, tag: "pnns64")
+    querySerialize(
+        Bfv<UInt64>.self, queryPtr: queryPtr,
+        outBytes: outBytes, outCap: outCap, tag: "pnns64")
 }
 
 @_cdecl("pnns64_query_deserialize")
@@ -1282,8 +1303,9 @@ public func pnns32QuerySerialize(
     outBytes: UnsafeMutablePointer<UInt8>?,
     outCap: Int) -> Int
 {
-    querySerialize(Bfv<UInt32>.self, queryPtr: queryPtr,
-                   outBytes: outBytes, outCap: outCap, tag: "pnns32")
+    querySerialize(
+        Bfv<UInt32>.self, queryPtr: queryPtr,
+        outBytes: outBytes, outCap: outCap, tag: "pnns32")
 }
 
 @_cdecl("pnns32_query_deserialize")
@@ -1326,12 +1348,14 @@ private func responseDeserialize<Scheme: HeScheme>(
     let ctx = unbox(ctxPtr, as: PnnsCtx<Scheme>.self)
     do {
         let data = Data(bytes: UnsafeRawPointer(bytes), count: len)
-        let proto = try Apple_SwiftHomomorphicEncryption_Api_Pnns_V1_PNNSShardResponse(serializedBytes: data)
+        let proto = try Apple_SwiftHomomorphicEncryption_Api_Pnns_V1_PNNSShardResponse(
+            serializedBytes: data)
         // moduliCount: pass -1 to use all moduli (for un-modswitched responses).
         // Pass 0 to default to 1 (normal modSwitchDown=true responses).
         // Positive values are taken verbatim.
         let moduli: Int? = moduliCount < 0 ? nil : (moduliCount == 0 ? 1 : Int(moduliCount))
-        let response = try proto.native(contexts: [ctx.context], moduliCount: moduli) as Response<Scheme>
+        let response =
+            try proto.native(contexts: [ctx.context], moduliCount: moduli) as Response<Scheme>
         return box(response)
     } catch {
         print("[\(tag)] response_deserialize error: \(error)")
@@ -1345,8 +1369,9 @@ public func pnns64ResponseSerialize(
     outBytes: UnsafeMutablePointer<UInt8>?,
     outCap: Int) -> Int
 {
-    responseSerialize(Bfv<UInt64>.self, responsePtr: responsePtr,
-                      outBytes: outBytes, outCap: outCap, tag: "pnns64")
+    responseSerialize(
+        Bfv<UInt64>.self, responsePtr: responsePtr,
+        outBytes: outBytes, outCap: outCap, tag: "pnns64")
 }
 
 @_cdecl("pnns64_response_deserialize")
@@ -1356,8 +1381,9 @@ public func pnns64ResponseDeserialize(
     len: Int,
     moduliCount: Int32) -> UnsafeMutableRawPointer?
 {
-    responseDeserialize(Bfv<UInt64>.self, ctxPtr: ctxPtr, bytes: bytes, len: len,
-                        moduliCount: moduliCount, tag: "pnns64")
+    responseDeserialize(
+        Bfv<UInt64>.self, ctxPtr: ctxPtr, bytes: bytes, len: len,
+        moduliCount: moduliCount, tag: "pnns64")
 }
 
 @_cdecl("pnns32_response_serialize")
@@ -1366,8 +1392,9 @@ public func pnns32ResponseSerialize(
     outBytes: UnsafeMutablePointer<UInt8>?,
     outCap: Int) -> Int
 {
-    responseSerialize(Bfv<UInt32>.self, responsePtr: responsePtr,
-                      outBytes: outBytes, outCap: outCap, tag: "pnns32")
+    responseSerialize(
+        Bfv<UInt32>.self, responsePtr: responsePtr,
+        outBytes: outBytes, outCap: outCap, tag: "pnns32")
 }
 
 @_cdecl("pnns32_response_deserialize")
@@ -1377,8 +1404,9 @@ public func pnns32ResponseDeserialize(
     len: Int,
     moduliCount: Int32) -> UnsafeMutableRawPointer?
 {
-    responseDeserialize(Bfv<UInt32>.self, ctxPtr: ctxPtr, bytes: bytes, len: len,
-                        moduliCount: moduliCount, tag: "pnns32")
+    responseDeserialize(
+        Bfv<UInt32>.self, ctxPtr: ctxPtr, bytes: bytes, len: len,
+        moduliCount: moduliCount, tag: "pnns32")
 }
 
 // MARK: - Ciphertext server (CT PNNS)
@@ -1436,9 +1464,11 @@ private func ctCompute<Scheme: HeScheme>(
     let query = unbox(queryPtr, as: Query<Scheme>.self)
     let evalKey = unbox(evalKeyPtr, as: EvaluationKey<Scheme>.self)
 
-    guard let response: Response<Scheme> = runBlocking({
-        try await server.computeResponse(to: query, using: evalKey)
-    }) else { return nil }
+    guard
+        let response: Response<Scheme> = runBlocking({
+            try await server.computeResponse(to: query, using: evalKey)
+        })
+    else { return nil }
     return box(response)
 }
 
@@ -1488,8 +1518,9 @@ public func ctpnns64CreateServer(
     dbRows: Int32,
     vectorDim: Int32) -> UnsafeMutableRawPointer?
 {
-    ctCreateServer(Bfv<UInt64>.self, ctxPtr: ctxPtr, dbVectors: dbVectors,
-                   skPtr: skPtr, dbRows: dbRows, vectorDim: vectorDim, tag: "ctpnns64")
+    ctCreateServer(
+        Bfv<UInt64>.self, ctxPtr: ctxPtr, dbVectors: dbVectors,
+        skPtr: skPtr, dbRows: dbRows, vectorDim: vectorDim, tag: "ctpnns64")
 }
 
 @_cdecl("ctpnns64_compute")
@@ -1498,8 +1529,9 @@ public func ctpnns64Compute(
     queryPtr: UnsafeRawPointer,
     evalKeyPtr: UnsafeRawPointer) -> UnsafeMutableRawPointer?
 {
-    ctCompute(Bfv<UInt64>.self, serverPtr: serverPtr, queryPtr: queryPtr,
-              evalKeyPtr: evalKeyPtr, tag: "ctpnns64")
+    ctCompute(
+        Bfv<UInt64>.self, serverPtr: serverPtr, queryPtr: queryPtr,
+        evalKeyPtr: evalKeyPtr, tag: "ctpnns64")
 }
 
 @_cdecl("ctpnns64_save_db")
@@ -1540,8 +1572,9 @@ public func ctpnns32CreateServer(
     dbRows: Int32,
     vectorDim: Int32) -> UnsafeMutableRawPointer?
 {
-    ctCreateServer(Bfv<UInt32>.self, ctxPtr: ctxPtr, dbVectors: dbVectors,
-                   skPtr: skPtr, dbRows: dbRows, vectorDim: vectorDim, tag: "ctpnns32")
+    ctCreateServer(
+        Bfv<UInt32>.self, ctxPtr: ctxPtr, dbVectors: dbVectors,
+        skPtr: skPtr, dbRows: dbRows, vectorDim: vectorDim, tag: "ctpnns32")
 }
 
 @_cdecl("ctpnns32_compute")
@@ -1550,8 +1583,9 @@ public func ctpnns32Compute(
     queryPtr: UnsafeRawPointer,
     evalKeyPtr: UnsafeRawPointer) -> UnsafeMutableRawPointer?
 {
-    ctCompute(Bfv<UInt32>.self, serverPtr: serverPtr, queryPtr: queryPtr,
-              evalKeyPtr: evalKeyPtr, tag: "ctpnns32")
+    ctCompute(
+        Bfv<UInt32>.self, serverPtr: serverPtr, queryPtr: queryPtr,
+        evalKeyPtr: evalKeyPtr, tag: "ctpnns32")
 }
 
 @_cdecl("ctpnns32_save_db")
@@ -1615,20 +1649,22 @@ private func responseAggregate<Scheme: HeScheme>(
         // to a single modulus so `client.decrypt` can consume it. Mirrors the
         // production pattern in Tests/PrivateNearestNeighborSearchTests/DotProductTests.swift.
         let sendableAggregated = SendableValue(aggregated)
-        guard let switched: Response<Scheme> = runBlocking({
-            let agg = sendableAggregated.value
-            var switchedMatrices: [CiphertextMatrix<Scheme, Coeff>] = []
-            switchedMatrices.reserveCapacity(agg.ciphertextMatrices.count)
-            for matrix in agg.ciphertextMatrices {
-                var canonical = try await matrix.convertToCanonicalFormat()
-                try await canonical.modSwitchDownToSingle()
-                try await switchedMatrices.append(canonical.convertToCoeffFormat())
-            }
-            return Response(
-                ciphertextMatrices: switchedMatrices,
-                entryIds: agg.entryIds,
-                entryMetadatas: agg.entryMetadatas)
-        }) else { return nil }
+        guard
+            let switched: Response<Scheme> = runBlocking({
+                let agg = sendableAggregated.value
+                var switchedMatrices: [CiphertextMatrix<Scheme, Coeff>] = []
+                switchedMatrices.reserveCapacity(agg.ciphertextMatrices.count)
+                for matrix in agg.ciphertextMatrices {
+                    var canonical = try await matrix.convertToCanonicalFormat()
+                    try await canonical.modSwitchDownToSingle()
+                    try await switchedMatrices.append(canonical.convertToCoeffFormat())
+                }
+                return Response(
+                    ciphertextMatrices: switchedMatrices,
+                    entryIds: agg.entryIds,
+                    entryMetadatas: agg.entryMetadatas)
+            })
+        else { return nil }
         return box(switched)
     } catch {
         print("[\(tag)] response_aggregate error: \(error)")
@@ -1651,9 +1687,10 @@ public func pnns64ResponseAggregate(
     count: Int,
     modSwitchDown: Int32) -> UnsafeMutableRawPointer?
 {
-    responseAggregate(Bfv<UInt64>.self,
-                      responses: responses, count: count,
-                      modSwitchDown: modSwitchDown, tag: "pnns64")
+    responseAggregate(
+        Bfv<UInt64>.self,
+        responses: responses, count: count,
+        modSwitchDown: modSwitchDown, tag: "pnns64")
 }
 
 /// See `pnns64_response_aggregate`.
@@ -1663,9 +1700,204 @@ public func pnns32ResponseAggregate(
     count: Int,
     modSwitchDown: Int32) -> UnsafeMutableRawPointer?
 {
-    responseAggregate(Bfv<UInt32>.self,
-                      responses: responses, count: count,
-                      modSwitchDown: modSwitchDown, tag: "pnns32")
+    responseAggregate(
+        Bfv<UInt32>.self,
+        responses: responses, count: count,
+        modSwitchDown: modSwitchDown, tag: "pnns32")
+}
+
+// MARK: - Bucket (multi-cluster) support
+
+/// Generic helper: build a BucketServer from per-cluster float vectors.
+///
+/// `clusterIds`       — array of `numClusters` UInt32 cluster IDs
+/// `clusterDbVectors` — array of `numClusters` pointers, each pointing to
+///                      `clusterDbRows[i] * vectorDim` row-major floats
+/// `clusterDbRows`    — array of `numClusters` row counts
+private func createBucketServer<Scheme: HeScheme>(
+    _: Scheme.Type,
+    ctxPtr: UnsafeRawPointer,
+    clusterIds: UnsafePointer<UInt32>,
+    clusterDbVectors: UnsafePointer<UnsafePointer<Float>>,
+    clusterDbRows: UnsafePointer<Int32>,
+    numClusters: Int32,
+    vectorDim: Int32,
+    tag _: String) -> UnsafeMutableRawPointer?
+{
+    let ctx = unbox(ctxPtr, as: PnnsCtx<Scheme>.self)
+    let n = Int(numClusters)
+    let dim = Int(vectorDim)
+
+    var clusters: [ClusterDatabase] = []
+    clusters.reserveCapacity(n)
+    for c in 0..<n {
+        let rowCount = Int(clusterDbRows[c])
+        let floats = Array(UnsafeBufferPointer(start: clusterDbVectors[c], count: rowCount * dim))
+        let rows = (0..<rowCount).map { i in
+            let start = i * dim
+            return DatabaseRow(
+                entryId: UInt64(i),
+                entryMetadata: [],
+                vector: Array(floats[start..<(start + dim)]))
+        }
+        clusters.append(ClusterDatabase(clusterId: clusterIds[c], database: Database(rows: rows)))
+    }
+
+    let bucket = Bucket(clusters: clusters)
+    let config = ctx.serverConfig
+    guard
+        let server: BucketServer<Scheme> = runBlocking({
+            let processed = try await bucket.process(config: config)
+            return BucketServer(bucket: processed)
+        })
+    else { return nil }
+    return box(server)
+}
+
+/// Create a BucketServer from per-cluster float databases (UInt64 scheme).
+///
+/// Each cluster is described by a cluster ID, a pointer to its row-major float
+/// vectors, and a row count. All clusters share the context's ServerConfig.
+///
+/// Returns an opaque BucketServer handle, or NULL on error.
+/// The caller must eventually call `pnns_free_handle` on the returned pointer.
+@_cdecl("pnns64_create_bucket_server")
+public func pnns64CreateBucketServer(
+    ctxPtr: UnsafeRawPointer,
+    clusterIds: UnsafePointer<UInt32>,
+    clusterDbVectors: UnsafePointer<UnsafePointer<Float>>,
+    clusterDbRows: UnsafePointer<Int32>,
+    numClusters: Int32,
+    vectorDim: Int32) -> UnsafeMutableRawPointer?
+{
+    createBucketServer(
+        Bfv<UInt64>.self,
+        ctxPtr: ctxPtr,
+        clusterIds: clusterIds,
+        clusterDbVectors: clusterDbVectors,
+        clusterDbRows: clusterDbRows,
+        numClusters: numClusters,
+        vectorDim: vectorDim,
+        tag: "pnns64")
+}
+
+/// See `pnns64_create_bucket_server`.
+@_cdecl("pnns32_create_bucket_server")
+public func pnns32CreateBucketServer(
+    ctxPtr: UnsafeRawPointer,
+    clusterIds: UnsafePointer<UInt32>,
+    clusterDbVectors: UnsafePointer<UnsafePointer<Float>>,
+    clusterDbRows: UnsafePointer<Int32>,
+    numClusters: Int32,
+    vectorDim: Int32) -> UnsafeMutableRawPointer?
+{
+    createBucketServer(
+        Bfv<UInt32>.self,
+        ctxPtr: ctxPtr,
+        clusterIds: clusterIds,
+        clusterDbVectors: clusterDbVectors,
+        clusterDbRows: clusterDbRows,
+        numClusters: numClusters,
+        vectorDim: vectorDim,
+        tag: "pnns32")
+}
+
+/// Generic helper: evaluate a query against all clusters in a BucketServer.
+///
+/// Writes cluster IDs and Response handles into caller-provided arrays.
+/// `outClusterIds` must have space for at least `numClusters` UInt32s.
+/// `outResponses`  must have space for at least `numClusters` opaque pointers.
+/// Returns the number of cluster responses written, or -1 on error.
+/// Each Response handle in `outResponses` must be freed with `pnns_free_handle`.
+private func bucketCompute<Scheme: HeScheme>(
+    _: Scheme.Type,
+    bucketServerPtr: UnsafeRawPointer,
+    queryPtr: UnsafeRawPointer,
+    evalKeyPtr: UnsafeRawPointer,
+    outClusterIds: UnsafeMutablePointer<UInt32>,
+    outResponses: UnsafeMutablePointer<UnsafeMutableRawPointer?>,
+    tag _: String) -> Int32
+{
+    let bucketServer = unbox(bucketServerPtr, as: BucketServer<Scheme>.self)
+    let query = unbox(queryPtr, as: Query<Scheme>.self)
+    let evalKey = unbox(evalKeyPtr, as: EvaluationKey<Scheme>.self)
+
+    guard
+        let clusterResponses: [ClusterResponse<Scheme>] = runBlocking({
+            try await bucketServer.computeResponses(to: query, using: evalKey)
+        })
+    else { return -1 }
+
+    for (i, cr) in clusterResponses.enumerated() {
+        outClusterIds[i] = cr.clusterId
+        outResponses[i] = box(cr.response)
+    }
+    return Int32(clusterResponses.count)
+}
+
+/// Evaluate a query against every cluster in a BucketServer (UInt64 scheme).
+///
+/// `outClusterIds` receives the cluster ID for each response.
+/// `outResponses`  receives an opaque Response handle per cluster.
+/// Both arrays must have space for at least as many elements as the bucket has
+/// (non-empty) clusters.
+///
+/// Returns the number of cluster responses written, or -1 on error.
+/// Each Response handle must be freed with `pnns_free_handle`.
+@_cdecl("pnns64_bucket_compute")
+public func pnns64BucketCompute(
+    bucketServerPtr: UnsafeRawPointer,
+    queryPtr: UnsafeRawPointer,
+    evalKeyPtr: UnsafeRawPointer,
+    outClusterIds: UnsafeMutablePointer<UInt32>,
+    outResponses: UnsafeMutablePointer<UnsafeMutableRawPointer?>) -> Int32
+{
+    bucketCompute(
+        Bfv<UInt64>.self,
+        bucketServerPtr: bucketServerPtr,
+        queryPtr: queryPtr,
+        evalKeyPtr: evalKeyPtr,
+        outClusterIds: outClusterIds,
+        outResponses: outResponses,
+        tag: "pnns64")
+}
+
+/// See `pnns64_bucket_compute`.
+@_cdecl("pnns32_bucket_compute")
+public func pnns32BucketCompute(
+    bucketServerPtr: UnsafeRawPointer,
+    queryPtr: UnsafeRawPointer,
+    evalKeyPtr: UnsafeRawPointer,
+    outClusterIds: UnsafeMutablePointer<UInt32>,
+    outResponses: UnsafeMutablePointer<UnsafeMutableRawPointer?>) -> Int32
+{
+    bucketCompute(
+        Bfv<UInt32>.self,
+        bucketServerPtr: bucketServerPtr,
+        queryPtr: queryPtr,
+        evalKeyPtr: evalKeyPtr,
+        outClusterIds: outClusterIds,
+        outResponses: outResponses,
+        tag: "pnns32")
+}
+
+/// Returns the number of (non-empty) clusters in a BucketServer (UInt64 scheme).
+/// Useful for callers to allocate output arrays before calling `pnns64_bucket_compute`.
+@_cdecl("pnns64_bucket_cluster_count")
+public func pnns64BucketClusterCount(
+    bucketServerPtr: UnsafeRawPointer) -> Int32
+{
+    let server = unbox(bucketServerPtr, as: BucketServer<Bfv<UInt64>>.self)
+    return Int32(server.bucket.clusters.count)
+}
+
+/// See `pnns64_bucket_cluster_count`.
+@_cdecl("pnns32_bucket_cluster_count")
+public func pnns32BucketClusterCount(
+    bucketServerPtr: UnsafeRawPointer) -> Int32
+{
+    let server = unbox(bucketServerPtr, as: BucketServer<Bfv<UInt32>>.self)
+    return Int32(server.bucket.clusters.count)
 }
 
 // MARK: - Memory management
